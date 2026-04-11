@@ -1,0 +1,162 @@
+/** @jest-environment node */
+const authMock = jest.fn()
+const findUniqueMock = jest.fn()
+const messageCreateMock = jest.fn()
+const sessionUpdateMock = jest.fn()
+const decryptMock = jest.fn()
+const getProviderMock = jest.fn()
+const streamTextMock = jest.fn()
+
+jest.mock("ai", () => ({
+  streamText: (...args: unknown[]) => streamTextMock(...args)
+}))
+
+jest.mock("@/lib/auth/next-auth", () => ({
+  auth: (...args: unknown[]) => authMock(...args)
+}))
+
+jest.mock("@/lib/db/prisma", () => ({
+  prisma: {
+    apiKey: {
+      findUnique: (...args: unknown[]) => findUniqueMock(...args)
+    },
+    message: {
+      create: (...args: unknown[]) => messageCreateMock(...args)
+    },
+    chatSession: {
+      update: (...args: unknown[]) => sessionUpdateMock(...args)
+    }
+  }
+}))
+
+jest.mock("@/lib/auth/encryption", () => ({
+  decrypt: (...args: unknown[]) => decryptMock(...args)
+}))
+
+jest.mock("@/lib/ai/providers", () => ({
+  getProvider: (...args: unknown[]) => getProviderMock(...args)
+}))
+
+import { POST } from "@/app/api/chat/route"
+
+describe("/api/chat route", () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it("should reject unauthenticated chat requests", async () => {
+    authMock.mockResolvedValue(null)
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [],
+          model: "gpt-4",
+          sessionId: "session-1"
+        })
+      })
+    )
+
+    expect(response.status).toBe(401)
+  })
+
+  it("should reject invalid models", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [],
+          model: "not-a-real-model",
+          sessionId: "session-1"
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it("should reject requests when the provider key is missing", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue(null)
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [],
+          model: "gpt-4",
+          sessionId: "session-1"
+        })
+      })
+    )
+
+    await expect(response.json()).resolves.toEqual({
+      error: "请先在设置中配置 openai 的 API Key"
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it("should stream a response and persist messages on finish", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "openai-model" })
+    streamTextMock.mockImplementation(async ({ onFinish }) => {
+      await onFinish({
+        text: "助手回复",
+        usage: {
+          totalTokens: 42
+        }
+      })
+
+      return {
+        toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+      }
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "gpt-4",
+          messages: [
+            {
+              role: "user",
+              content: "你好",
+              images: []
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(decryptMock).toHaveBeenCalledWith("encrypted-value")
+    expect(getProviderMock).toHaveBeenCalledWith(
+      "openai",
+      "gpt-4",
+      "decrypted-value"
+    )
+    expect(messageCreateMock).toHaveBeenCalledTimes(2)
+    expect(sessionUpdateMock).toHaveBeenCalledWith({
+      where: { id: "session-1" },
+      data: { updatedAt: expect.any(Date) }
+    })
+  })
+})
