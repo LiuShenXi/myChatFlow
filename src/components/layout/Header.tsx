@@ -10,10 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { ModelSelector } from "@/components/settings/ModelSelector"
 import { cn } from "@/lib/utils"
-import { useSessionStore } from "@/store/session-store"
 import { useSettingsStore } from "@/store/settings-store"
-import { AVAILABLE_MODELS } from "@/types/model"
 
 export function Header({
   onOpenSettings
@@ -22,11 +21,6 @@ export function Header({
 }) {
   const { data: session } = useSession()
   const { toggleSessionList } = useSettingsStore()
-  const { currentModel, setModel } = useSessionStore()
-
-  const currentModelName =
-    AVAILABLE_MODELS.find((model) => model.id === currentModel)?.name ??
-    currentModel
 
   return (
     <header className="flex h-14 items-center justify-between border-b px-4">
@@ -43,24 +37,7 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="当前模型"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            {currentModelName}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {AVAILABLE_MODELS.map((model) => (
-              <DropdownMenuItem
-                key={model.id}
-                onClick={() => setModel(model.id)}
-              >
-                {model.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ModelSelector />
 
         <Button
           variant="ghost"

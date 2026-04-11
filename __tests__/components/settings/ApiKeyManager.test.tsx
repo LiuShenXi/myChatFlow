@@ -1,0 +1,105 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { ApiKeyManager } from "@/components/settings/ApiKeyManager"
+
+describe("ApiKeyManager", () => {
+  const fetchMock = jest.fn()
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    fetchMock.mockReset()
+    global.fetch = fetchMock as unknown as typeof fetch
+  })
+
+  it("should load and show configured providers", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          provider: "openai",
+          updatedAt: "2026-04-12T00:00:00.000Z"
+        }
+      ]
+    })
+
+    render(<ApiKeyManager />)
+
+    expect(await screen.findByText("已配置")).toBeInTheDocument()
+    expect(screen.getByText("OpenAI")).toBeInTheDocument()
+  })
+
+  it("should save a provider api key and clear the input", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      })
+
+    render(<ApiKeyManager />)
+
+    const input = await screen.findByLabelText("OpenAI API Key")
+
+    fireEvent.change(input, { target: { value: "sk-openai-test" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存 OpenAI API Key" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/keys",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "openai",
+            apiKey: "sk-openai-test"
+          })
+        })
+      )
+    })
+
+    expect(screen.getByLabelText("OpenAI API Key")).toHaveValue("")
+    expect(screen.getByText("已配置")).toBeInTheDocument()
+  })
+
+  it("should delete a configured provider key", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            provider: "openai",
+            updatedAt: "2026-04-12T00:00:00.000Z"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      })
+
+    render(<ApiKeyManager />)
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "删除 OpenAI API Key" })
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/keys",
+        expect.objectContaining({
+          method: "DELETE",
+          body: JSON.stringify({ provider: "openai" })
+        })
+      )
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "删除 OpenAI API Key" })
+      ).not.toBeInTheDocument()
+    })
+  })
+})
