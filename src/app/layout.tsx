@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { Providers } from "@/components/Providers"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -25,9 +27,20 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+        />
+      </head>
+      <body className="theme min-h-full flex flex-col">
+        <Providers>
+          <TooltipProvider>{children}</TooltipProvider>
+        </Providers>
+      </body>
     </html>
   )
 }
