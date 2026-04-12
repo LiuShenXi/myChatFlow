@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Plus, Trash2, X } from "lucide-react"
+import { KeyRound, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -10,6 +10,7 @@ type CustomModelConfigDTO = {
   name: string
   baseUrl: string
   modelId: string
+  hasApiKey: boolean
   updatedAt: string
 }
 
@@ -17,12 +18,14 @@ type DraftState = {
   name: string
   baseUrl: string
   modelId: string
+  apiKey: string
 }
 
 const EMPTY_DRAFT: DraftState = {
   name: "",
   baseUrl: "",
-  modelId: ""
+  modelId: "",
+  apiKey: ""
 }
 
 export function CustomModelManager() {
@@ -66,10 +69,15 @@ export function CustomModelManager() {
     const payload = {
       name: draft.name.trim(),
       baseUrl: draft.baseUrl.trim(),
-      modelId: draft.modelId.trim()
+      modelId: draft.modelId.trim(),
+      apiKey: draft.apiKey.trim()
     }
 
     if (!payload.name || !payload.baseUrl || !payload.modelId) {
+      return
+    }
+
+    if (!editingId && !payload.apiKey) {
       return
     }
 
@@ -77,6 +85,15 @@ export function CustomModelManager() {
       ? `/api/custom-models/${editingId}`
       : "/api/custom-models"
     const method = editingId ? "PATCH" : "POST"
+    const body = JSON.stringify(
+      payload.apiKey
+        ? payload
+        : {
+            name: payload.name,
+            baseUrl: payload.baseUrl,
+            modelId: payload.modelId
+          }
+    )
 
     setIsSaving(true)
 
@@ -86,7 +103,7 @@ export function CustomModelManager() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body
       })
 
       if (!response.ok) {
@@ -111,7 +128,8 @@ export function CustomModelManager() {
     setDraft({
       name: model.name,
       baseUrl: model.baseUrl,
-      modelId: model.modelId
+      modelId: model.modelId,
+      apiKey: ""
     })
   }
 
@@ -136,7 +154,10 @@ export function CustomModelManager() {
   }
 
   const canSave = Boolean(
-    draft.name.trim() && draft.baseUrl.trim() && draft.modelId.trim()
+    draft.name.trim() &&
+      draft.baseUrl.trim() &&
+      draft.modelId.trim() &&
+      (editingId ? true : draft.apiKey.trim())
   )
 
   return (
@@ -144,12 +165,12 @@ export function CustomModelManager() {
       <div className="space-y-1">
         <h3 className="text-sm font-medium">自定义模型</h3>
         <p className="text-xs text-muted-foreground">
-          保存你自己的 OpenAI-compatible Base URL 和 Model ID。
+          每条自定义模型都会绑定自己的 Base URL、Model ID 和 API Key。
         </p>
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-border p-4">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1">
             <label className="text-sm font-medium" htmlFor="custom-model-name">
               自定义模型名称
@@ -157,8 +178,8 @@ export function CustomModelManager() {
             <Input
               id="custom-model-name"
               value={draft.name}
-              aria-label="自定义模型名称"
-              placeholder="例如：My Gateway"
+              aria-label="Custom model name"
+              placeholder="例如：GLM 5.1"
               onChange={(event) => updateDraft("name", event.target.value)}
             />
           </div>
@@ -170,7 +191,7 @@ export function CustomModelManager() {
             <Input
               id="custom-model-base-url"
               value={draft.baseUrl}
-              aria-label="自定义 Base URL"
+              aria-label="Custom model base URL"
               placeholder="https://example.com/v1"
               onChange={(event) => updateDraft("baseUrl", event.target.value)}
             />
@@ -183,9 +204,23 @@ export function CustomModelManager() {
             <Input
               id="custom-model-id"
               value={draft.modelId}
-              aria-label="自定义 Model ID"
+              aria-label="Custom model ID"
               placeholder="gpt-4o-mini"
               onChange={(event) => updateDraft("modelId", event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="custom-model-api-key">
+              自定义模型 API Key
+            </label>
+            <Input
+              id="custom-model-api-key"
+              type="password"
+              value={draft.apiKey}
+              aria-label="Custom model API Key"
+              placeholder={editingId ? "留空表示不修改 API Key" : "sk-..."}
+              onChange={(event) => updateDraft("apiKey", event.target.value)}
             />
           </div>
         </div>
@@ -219,6 +254,12 @@ export function CustomModelManager() {
               <div className="text-sm font-medium">{model.name}</div>
               <div className="text-xs text-muted-foreground">{model.baseUrl}</div>
               <div className="text-xs text-muted-foreground">{model.modelId}</div>
+              {model.hasApiKey ? (
+                <div className="flex items-center gap-1 text-xs text-green-600">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  已配置密钥
+                </div>
+              ) : null}
             </div>
 
             <div className="flex gap-2">

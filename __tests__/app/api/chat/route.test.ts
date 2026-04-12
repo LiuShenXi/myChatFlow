@@ -276,15 +276,13 @@ describe("/api/chat route", () => {
 
   it("should use a custom model config when the current model is custom:<id>", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
-    findUniqueMock.mockResolvedValue({
-      encryptedKey: "encrypted-custom-key"
-    })
     customModelFindUniqueMock.mockResolvedValue({
       id: "cfg-1",
       userId: "user-1",
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
-      modelId: "gpt-4o-mini"
+      modelId: "gpt-4o-mini",
+      encryptedApiKey: "encrypted-custom-key"
     })
     decryptMock.mockReturnValue("decrypted-custom-key")
     createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
@@ -310,6 +308,8 @@ describe("/api/chat route", () => {
     expect(customModelFindUniqueMock).toHaveBeenCalledWith({
       where: { id: "cfg-1" }
     })
+    expect(findUniqueMock).not.toHaveBeenCalled()
+    expect(decryptMock).toHaveBeenCalledWith("encrypted-custom-key")
     expect(createCustomProviderMock).toHaveBeenCalledWith(
       "https://example.com/v1",
       "gpt-4o-mini",
@@ -317,16 +317,16 @@ describe("/api/chat route", () => {
     )
   })
 
-  it("should reject custom models when the custom-openai api key is missing", async () => {
+  it("should reject custom models when the custom model api key is missing", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
     customModelFindUniqueMock.mockResolvedValue({
       id: "cfg-1",
       userId: "user-1",
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
-      modelId: "gpt-4o-mini"
+      modelId: "gpt-4o-mini",
+      encryptedApiKey: ""
     })
-    findUniqueMock.mockResolvedValue(null)
 
     const response = await POST(
       new Request("http://localhost/api/chat", {
@@ -344,7 +344,7 @@ describe("/api/chat route", () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
-      error: "请先在设置中配置 custom-openai 的 API Key"
+      error: "该自定义模型缺少 API Key，请在设置中重新保存"
     })
   })
 })

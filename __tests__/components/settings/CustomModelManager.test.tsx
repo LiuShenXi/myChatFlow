@@ -19,6 +19,7 @@ describe("CustomModelManager", () => {
           name: "My Gateway",
           baseUrl: "https://example.com/v1",
           modelId: "gpt-4o-mini",
+          hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         }
       ]
@@ -28,9 +29,10 @@ describe("CustomModelManager", () => {
 
     expect(await screen.findByText("My Gateway")).toBeInTheDocument()
     expect(screen.getByText("https://example.com/v1")).toBeInTheDocument()
+    expect(screen.getByText("已配置密钥")).toBeInTheDocument()
   })
 
-  it("should create a custom model", async () => {
+  it("should create a custom model with its own api key", async () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
@@ -43,20 +45,24 @@ describe("CustomModelManager", () => {
           name: "My Gateway",
           baseUrl: "https://example.com/v1",
           modelId: "gpt-4o-mini",
+          hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         })
       })
 
     render(<CustomModelManager />)
 
-    fireEvent.change(await screen.findByLabelText("自定义模型名称"), {
+    fireEvent.change(await screen.findByLabelText("Custom model name"), {
       target: { value: "My Gateway" }
     })
-    fireEvent.change(screen.getByLabelText("自定义 Base URL"), {
+    fireEvent.change(screen.getByLabelText("Custom model base URL"), {
       target: { value: "https://example.com/v1" }
     })
-    fireEvent.change(screen.getByLabelText("自定义 Model ID"), {
+    fireEvent.change(screen.getByLabelText("Custom model ID"), {
       target: { value: "gpt-4o-mini" }
+    })
+    fireEvent.change(screen.getByLabelText("Custom model API Key"), {
+      target: { value: "sk-test" }
     })
     fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
 
@@ -64,7 +70,13 @@ describe("CustomModelManager", () => {
       expect(fetchMock).toHaveBeenLastCalledWith(
         "/api/custom-models",
         expect.objectContaining({
-          method: "POST"
+          method: "POST",
+          body: JSON.stringify({
+            name: "My Gateway",
+            baseUrl: "https://example.com/v1",
+            modelId: "gpt-4o-mini",
+            apiKey: "sk-test"
+          })
         })
       )
     })
@@ -72,7 +84,7 @@ describe("CustomModelManager", () => {
     expect(await screen.findByText("My Gateway")).toBeInTheDocument()
   })
 
-  it("should update a custom model", async () => {
+  it("should update a custom model and replace the api key when provided", async () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
@@ -82,6 +94,7 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            hasApiKey: true,
             updatedAt: "2026-04-12T00:00:00.000Z"
           }
         ]
@@ -93,6 +106,7 @@ describe("CustomModelManager", () => {
           name: "Updated Gateway",
           baseUrl: "https://new.example.com/v1",
           modelId: "gpt-4.1-mini",
+          hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         })
       })
@@ -100,13 +114,75 @@ describe("CustomModelManager", () => {
     render(<CustomModelManager />)
 
     fireEvent.click(await screen.findByRole("button", { name: "编辑 My Gateway" }))
-    fireEvent.change(screen.getByLabelText("自定义模型名称"), {
+    fireEvent.change(screen.getByLabelText("Custom model name"), {
       target: { value: "Updated Gateway" }
     })
-    fireEvent.change(screen.getByLabelText("自定义 Base URL"), {
+    fireEvent.change(screen.getByLabelText("Custom model base URL"), {
       target: { value: "https://new.example.com/v1" }
     })
-    fireEvent.change(screen.getByLabelText("自定义 Model ID"), {
+    fireEvent.change(screen.getByLabelText("Custom model ID"), {
+      target: { value: "gpt-4.1-mini" }
+    })
+    fireEvent.change(screen.getByLabelText("Custom model API Key"), {
+      target: { value: "sk-updated" }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "/api/custom-models/cfg-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            name: "Updated Gateway",
+            baseUrl: "https://new.example.com/v1",
+            modelId: "gpt-4.1-mini",
+            apiKey: "sk-updated"
+          })
+        })
+      )
+    })
+
+    expect(await screen.findByText("Updated Gateway")).toBeInTheDocument()
+  })
+
+  it("should keep the existing api key when editing without entering a new key", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            id: "cfg-1",
+            name: "My Gateway",
+            baseUrl: "https://example.com/v1",
+            modelId: "gpt-4o-mini",
+            hasApiKey: true,
+            updatedAt: "2026-04-12T00:00:00.000Z"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "cfg-1",
+          name: "Updated Gateway",
+          baseUrl: "https://new.example.com/v1",
+          modelId: "gpt-4.1-mini",
+          hasApiKey: true,
+          updatedAt: "2026-04-12T00:00:00.000Z"
+        })
+      })
+
+    render(<CustomModelManager />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "编辑 My Gateway" }))
+    fireEvent.change(screen.getByLabelText("Custom model name"), {
+      target: { value: "Updated Gateway" }
+    })
+    fireEvent.change(screen.getByLabelText("Custom model base URL"), {
+      target: { value: "https://new.example.com/v1" }
+    })
+    fireEvent.change(screen.getByLabelText("Custom model ID"), {
       target: { value: "gpt-4.1-mini" }
     })
     fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
@@ -115,12 +191,15 @@ describe("CustomModelManager", () => {
       expect(fetchMock).toHaveBeenLastCalledWith(
         "/api/custom-models/cfg-1",
         expect.objectContaining({
-          method: "PATCH"
+          method: "PATCH",
+          body: JSON.stringify({
+            name: "Updated Gateway",
+            baseUrl: "https://new.example.com/v1",
+            modelId: "gpt-4.1-mini"
+          })
         })
       )
     })
-
-    expect(await screen.findByText("Updated Gateway")).toBeInTheDocument()
   })
 
   it("should delete a custom model", async () => {
@@ -133,6 +212,7 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            hasApiKey: true,
             updatedAt: "2026-04-12T00:00:00.000Z"
           }
         ]

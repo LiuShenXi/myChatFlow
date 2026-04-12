@@ -2,6 +2,7 @@
 const authMock = jest.fn()
 const findManyMock = jest.fn()
 const createMock = jest.fn()
+const encryptMock = jest.fn()
 
 jest.mock("@/lib/auth/next-auth", () => ({
   auth: (...args: unknown[]) => authMock(...args)
@@ -14,6 +15,10 @@ jest.mock("@/lib/db/prisma", () => ({
       create: (...args: unknown[]) => createMock(...args)
     }
   }
+}))
+
+jest.mock("@/lib/auth/encryption", () => ({
+  encrypt: (...args: unknown[]) => encryptMock(...args)
 }))
 
 import { GET, POST } from "@/app/api/custom-models/route"
@@ -39,6 +44,7 @@ describe("/api/custom-models route", () => {
         name: "My Gateway",
         baseUrl: "https://example.com/v1",
         modelId: "gpt-4o-mini",
+        encryptedApiKey: "encrypted-key",
         updatedAt: "2026-04-12T00:00:00.000Z"
       }
     ])
@@ -56,6 +62,7 @@ describe("/api/custom-models route", () => {
         name: true,
         baseUrl: true,
         modelId: true,
+        encryptedApiKey: true,
         updatedAt: true
       }
     })
@@ -71,7 +78,27 @@ describe("/api/custom-models route", () => {
         body: JSON.stringify({
           name: "My Gateway",
           baseUrl: "not-a-url",
-          modelId: "gpt-4o-mini"
+          modelId: "gpt-4o-mini",
+          apiKey: "sk-test"
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it("should reject creating a custom model without an api key", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+
+    const response = await POST(
+      new Request("http://localhost/api/custom-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "My Gateway",
+          baseUrl: "https://example.com/v1",
+          modelId: "gpt-4o-mini",
+          apiKey: ""
         })
       })
     )
@@ -81,12 +108,14 @@ describe("/api/custom-models route", () => {
 
   it("should create a custom model for the current user", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
+    encryptMock.mockReturnValue("encrypted-key")
     createMock.mockResolvedValue({
       id: "cfg-1",
       userId: "user-1",
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
       modelId: "gpt-4o-mini",
+      encryptedApiKey: "encrypted-key",
       updatedAt: "2026-04-12T00:00:00.000Z"
     })
 
@@ -97,7 +126,8 @@ describe("/api/custom-models route", () => {
         body: JSON.stringify({
           name: "My Gateway",
           baseUrl: "https://example.com/v1",
-          modelId: "gpt-4o-mini"
+          modelId: "gpt-4o-mini",
+          apiKey: "sk-test"
         })
       })
     )
@@ -114,13 +144,15 @@ describe("/api/custom-models route", () => {
         userId: "user-1",
         name: "My Gateway",
         baseUrl: "https://example.com/v1",
-        modelId: "gpt-4o-mini"
+        modelId: "gpt-4o-mini",
+        encryptedApiKey: "encrypted-key"
       },
       select: {
         id: true,
         name: true,
         baseUrl: true,
         modelId: true,
+        encryptedApiKey: true,
         updatedAt: true
       }
     })

@@ -55,23 +55,37 @@ export async function POST(req: Request) {
       return new Response("Invalid model", { status: 400 })
     }
 
-    const providerId = customModelConfig
-      ? "custom-openai"
-      : staticModelConfig!.provider
+    const customEncryptedApiKey = customModelConfig?.encryptedApiKey ?? null
 
-    const apiKeyRecord = await prisma.apiKey.findUnique({
-      where: {
-        userId_provider: {
-          userId: session.user.id,
-          provider: providerId
-        }
-      }
-    })
-
-    if (!apiKeyRecord) {
+    if (customModelConfig && !customEncryptedApiKey?.trim()) {
       return new Response(
         JSON.stringify({
-          error: `请先在设置中配置 ${providerId} 的 API Key`
+          error: "该自定义模型缺少 API Key，请在设置中重新保存"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      )
+    }
+
+    const apiKeyRecord = customModelConfig
+      ? null
+      : await prisma.apiKey.findUnique({
+          where: {
+            userId_provider: {
+              userId: session.user.id,
+              provider: staticModelConfig!.provider
+            }
+          }
+        })
+
+    if (!customModelConfig && !apiKeyRecord) {
+      return new Response(
+        JSON.stringify({
+          error: `请先在设置中配置 ${staticModelConfig!.provider} 的 API Key`
         }),
         {
           status: 400,
@@ -84,7 +98,7 @@ export async function POST(req: Request) {
 
     if (
       staticModelConfig?.provider === "doubao" &&
-      !apiKeyRecord.endpointId?.trim()
+      !apiKeyRecord?.endpointId?.trim()
     ) {
       return new Response(
         JSON.stringify({
@@ -99,7 +113,13 @@ export async function POST(req: Request) {
       )
     }
 
-    const apiKey = decrypt(apiKeyRecord.encryptedKey)
+    const apiKey = customModelConfig
+      ? decrypt(customEncryptedApiKey!)
+      : decrypt(apiKeyRecord!.encryptedKey)
+    const resolvedModelId =
+      staticModelConfig?.provider === "doubao"
+        ? apiKeyRecord?.endpointId?.trim()
+        : staticModelConfig?.modelId
     const provider = customModelConfig
       ? createCustomOpenAICompatibleModel(
           customModelConfig.baseUrl,
@@ -108,9 +128,7 @@ export async function POST(req: Request) {
         )
       : getProvider(
           staticModelConfig!.provider,
-          staticModelConfig!.provider === "doubao"
-            ? apiKeyRecord.endpointId!.trim()
-            : staticModelConfig!.modelId,
+          resolvedModelId!,
           apiKey
         )
 

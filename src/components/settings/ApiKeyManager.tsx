@@ -121,7 +121,7 @@ export function ApiKeyManager() {
       <div className="space-y-1">
         <h3 className="text-sm font-medium">API Keys</h3>
         <p className="text-xs text-muted-foreground">
-          所有密钥都会在服务端使用 AES-256-GCM 加密存储。
+          所有密钥都会在服务端使用 AES-256-GCM 加密保存。
         </p>
       </div>
 

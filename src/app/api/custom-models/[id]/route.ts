@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { encrypt } from "@/lib/auth/encryption"
 import { auth } from "@/lib/auth/next-auth"
 import { prisma } from "@/lib/db/prisma"
 
@@ -23,6 +24,24 @@ function createInvalidConfigResponse() {
   )
 }
 
+function toPublicConfig(config: {
+  id: string
+  name: string
+  baseUrl: string
+  modelId: string
+  encryptedApiKey: string | null
+  updatedAt: string | Date
+}) {
+  return {
+    id: config.id,
+    name: config.name,
+    baseUrl: config.baseUrl,
+    modelId: config.modelId,
+    hasApiKey: Boolean(config.encryptedApiKey),
+    updatedAt: config.updatedAt
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,11 +57,13 @@ export async function PATCH(
     name?: string
     baseUrl?: string
     modelId?: string
+    apiKey?: string
   }
 
   const name = payload.name?.trim()
   const baseUrl = payload.baseUrl?.trim()
   const modelId = payload.modelId?.trim()
+  const apiKey = payload.apiKey?.trim()
 
   if (!name || !modelId || !baseUrl || !isValidBaseUrl(baseUrl)) {
     return createInvalidConfigResponse()
@@ -56,18 +77,20 @@ export async function PATCH(
     data: {
       name,
       baseUrl,
-      modelId
+      modelId,
+      ...(apiKey ? { encryptedApiKey: encrypt(apiKey) } : {})
     },
     select: {
       id: true,
       name: true,
       baseUrl: true,
       modelId: true,
+      encryptedApiKey: true,
       updatedAt: true
     }
   })
 
-  return NextResponse.json(config ?? null)
+  return NextResponse.json(config ? toPublicConfig(config) : null)
 }
 
 export async function DELETE(

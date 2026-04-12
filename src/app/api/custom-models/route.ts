@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { encrypt } from "@/lib/auth/encryption"
 import { auth } from "@/lib/auth/next-auth"
 import { prisma } from "@/lib/db/prisma"
 
@@ -23,6 +24,24 @@ function createInvalidConfigResponse() {
   )
 }
 
+function toPublicConfig(config: {
+  id: string
+  name: string
+  baseUrl: string
+  modelId: string
+  encryptedApiKey: string | null
+  updatedAt: string | Date
+}) {
+  return {
+    id: config.id,
+    name: config.name,
+    baseUrl: config.baseUrl,
+    modelId: config.modelId,
+    hasApiKey: Boolean(config.encryptedApiKey),
+    updatedAt: config.updatedAt
+  }
+}
+
 export async function GET() {
   const session = await auth()
 
@@ -42,11 +61,12 @@ export async function GET() {
       name: true,
       baseUrl: true,
       modelId: true,
+      encryptedApiKey: true,
       updatedAt: true
     }
   })
 
-  return NextResponse.json(configs)
+  return NextResponse.json(configs.map(toPublicConfig))
 }
 
 export async function POST(req: Request) {
@@ -60,13 +80,15 @@ export async function POST(req: Request) {
     name?: string
     baseUrl?: string
     modelId?: string
+    apiKey?: string
   }
 
   const name = payload.name?.trim()
   const baseUrl = payload.baseUrl?.trim()
   const modelId = payload.modelId?.trim()
+  const apiKey = payload.apiKey?.trim()
 
-  if (!name || !modelId || !baseUrl || !isValidBaseUrl(baseUrl)) {
+  if (!name || !modelId || !baseUrl || !apiKey || !isValidBaseUrl(baseUrl)) {
     return createInvalidConfigResponse()
   }
 
@@ -75,16 +97,18 @@ export async function POST(req: Request) {
       userId: session.user.id,
       name,
       baseUrl,
-      modelId
+      modelId,
+      encryptedApiKey: encrypt(apiKey)
     },
     select: {
       id: true,
       name: true,
       baseUrl: true,
       modelId: true,
+      encryptedApiKey: true,
       updatedAt: true
     }
   })
 
-  return NextResponse.json(config)
+  return NextResponse.json(toPublicConfig(config))
 }

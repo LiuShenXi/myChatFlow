@@ -14,13 +14,6 @@ describe("AI providers", () => {
     })
   })
 
-  it('should expose custom-openai metadata for api key settings', () => {
-    expect(getOpenAICompatibleProviderMeta("custom-openai")).toMatchObject({
-      id: "custom-openai",
-      name: "自定义 OpenAI-Compatible"
-    })
-  })
-
   it('should return openai provider for "openai"', () => {
     const provider = getProvider("openai", "gpt-4", "test-key")
 
