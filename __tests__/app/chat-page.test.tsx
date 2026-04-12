@@ -1,10 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import * as React from "react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import ChatPage from "@/app/(chat)/page"
 import { useChatStore } from "@/store/chat-store"
 import { useSessionStore } from "@/store/session-store"
 
 const useChatMock = jest.fn()
 const useSessionMock = jest.fn()
+const mockFocus = jest.fn()
 
 jest.mock("ai/react", () => ({
   useChat: (...args: unknown[]) => useChatMock(...args)
@@ -29,20 +31,34 @@ jest.mock("@/components/chat/MessageList", () => ({
   )
 }))
 
-jest.mock("@/components/chat/InputArea", () => ({
-  InputArea: ({
-    input,
-    disabled
-  }: {
-    input: string
-    disabled: boolean
-  }) => (
-    <div>
-      <div>输入框 {input}</div>
-      <div>禁用状态 {String(disabled)}</div>
-    </div>
-  )
-}))
+jest.mock("@/components/chat/InputArea", () => {
+  const MockInputArea = React.forwardRef<
+    HTMLTextAreaElement,
+    {
+      input: string
+      disabled: boolean
+    }
+  >(function MockInputArea({ input, disabled }, ref) {
+    React.useImperativeHandle(
+      ref,
+      () =>
+        ({
+          focus: mockFocus
+        }) as unknown as HTMLTextAreaElement
+    )
+
+    return (
+      <div>
+        <div>输入框 {input}</div>
+        <div>禁用状态 {String(disabled)}</div>
+      </div>
+    )
+  })
+
+  return {
+    InputArea: MockInputArea
+  }
+})
 
 describe("ChatPage", () => {
   const setMessagesMock = jest.fn()
@@ -53,6 +69,7 @@ describe("ChatPage", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     global.fetch = fetchMock as unknown as typeof fetch
+    document.body.innerHTML = ""
     useSessionMock.mockReturnValue({
       status: "authenticated",
       data: {
@@ -199,5 +216,124 @@ describe("ChatPage", () => {
 
     expect(screen.getByText("登录后即可开始对话")).toBeInTheDocument()
     expect(screen.getByText("禁用状态 true")).toBeInTheDocument()
+    expect(mockFocus).not.toHaveBeenCalled()
+  })
+
+  it("should focus the input when the page becomes ready for chatting", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        messages: []
+      })
+    })
+
+    render(<ChatPage />)
+
+    expect(mockFocus).not.toHaveBeenCalled()
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [],
+        currentSessionId: "session-1",
+        currentModel: "gpt-4",
+        setSessions: useSessionStore.getState().setSessions,
+        setCurrentSession: useSessionStore.getState().setCurrentSession,
+        addSession: useSessionStore.getState().addSession,
+        removeSession: useSessionStore.getState().removeSession,
+        updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+        setModel: useSessionStore.getState().setModel
+      })
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-1")
+    })
+
+    expect(mockFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("should not steal focus from another input element", async () => {
+    const otherInput = document.createElement("input")
+    document.body.appendChild(otherInput)
+    otherInput.focus()
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        messages: []
+      })
+    })
+
+    render(<ChatPage />)
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [],
+        currentSessionId: "session-1",
+        currentModel: "gpt-4",
+        setSessions: useSessionStore.getState().setSessions,
+        setCurrentSession: useSessionStore.getState().setCurrentSession,
+        addSession: useSessionStore.getState().addSession,
+        removeSession: useSessionStore.getState().removeSession,
+        updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+        setModel: useSessionStore.getState().setModel
+      })
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-1")
+    })
+
+    expect(document.activeElement).toBe(otherInput)
+    expect(mockFocus).not.toHaveBeenCalled()
+  })
+
+  it("should focus the input again when switching to a new session", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        messages: []
+      })
+    })
+
+    render(<ChatPage />)
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [],
+        currentSessionId: "session-1",
+        currentModel: "gpt-4",
+        setSessions: useSessionStore.getState().setSessions,
+        setCurrentSession: useSessionStore.getState().setCurrentSession,
+        addSession: useSessionStore.getState().addSession,
+        removeSession: useSessionStore.getState().removeSession,
+        updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+        setModel: useSessionStore.getState().setModel
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockFocus).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [],
+        currentSessionId: "session-2",
+        currentModel: "gpt-4",
+        setSessions: useSessionStore.getState().setSessions,
+        setCurrentSession: useSessionStore.getState().setCurrentSession,
+        addSession: useSessionStore.getState().addSession,
+        removeSession: useSessionStore.getState().removeSession,
+        updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+        setModel: useSessionStore.getState().setModel
+      })
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-2")
+    })
+
+    expect(mockFocus).toHaveBeenCalledTimes(2)
   })
 })

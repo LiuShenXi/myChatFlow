@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useChat } from "ai/react"
 import { useSession } from "next-auth/react"
 import { AuthPrompt } from "@/components/auth/AuthPrompt"
@@ -14,6 +14,9 @@ export default function ChatPage() {
   const currentSessionId = useSessionStore((state) => state.currentSessionId)
   const currentModel = useSessionStore((state) => state.currentModel)
   const setIsStreaming = useChatStore((state) => state.setIsStreaming)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const previousReadyRef = useRef(false)
+  const previousSessionIdRef = useRef<string | null>(null)
 
   const {
     messages,
@@ -69,6 +72,27 @@ export default function ChatPage() {
   const isInputDisabled =
     isLoading || status !== "authenticated" || !currentSessionId
 
+  useEffect(() => {
+    const isReady = status === "authenticated" && Boolean(currentSessionId)
+    const becameReady = !previousReadyRef.current && isReady
+    const sessionChanged = previousSessionIdRef.current !== currentSessionId
+
+    const activeElement = document.activeElement
+    const hasInputLikeFocus =
+      activeElement instanceof HTMLElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.tagName === "SELECT" ||
+        activeElement.isContentEditable)
+
+    if (isReady && !isLoading && (becameReady || sessionChanged) && !hasInputLikeFocus) {
+      inputRef.current?.focus()
+    }
+
+    previousReadyRef.current = isReady
+    previousSessionIdRef.current = currentSessionId
+  }, [currentSessionId, isLoading, status])
+
   return (
     <>
       {status === "unauthenticated" ? (
@@ -81,6 +105,7 @@ export default function ChatPage() {
       ) : null}
       <MessageList messages={messages} isLoading={isLoading} />
       <InputArea
+        ref={inputRef}
         input={input}
         setInput={setInput}
         onSubmit={handleSubmit}
