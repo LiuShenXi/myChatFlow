@@ -1,6 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
 import GitHub from "next-auth/providers/github"
-import Google from "next-auth/providers/google"
 
 type AuthEnv = {
   GOOGLE_CLIENT_ID?: string
@@ -9,15 +8,42 @@ type AuthEnv = {
   GITHUB_CLIENT_SECRET?: string
 }
 
+type GoogleUserProfile = {
+  sub: string
+  name?: string
+  email?: string
+  picture?: string
+}
+
 export function createAuthProviders(env: AuthEnv = process.env as AuthEnv) {
   const providers = []
 
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     providers.push(
-      Google({
+      {
+        id: "google",
+        name: "Google",
+        type: "oauth",
+        issuer: "https://accounts.google.com",
         clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET
-      })
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        authorization: {
+          url: "https://accounts.google.com/o/oauth2/v2/auth",
+          params: {
+            scope: "openid profile email"
+          }
+        },
+        token: "https://oauth2.googleapis.com/token",
+        userinfo: "https://openidconnect.googleapis.com/v1/userinfo",
+        profile(profile: GoogleUserProfile) {
+          return {
+            id: profile.sub,
+            name: profile.name ?? null,
+            email: profile.email ?? null,
+            image: profile.picture ?? null
+          }
+        }
+      } satisfies NonNullable<NextAuthConfig["providers"]>[number]
     )
   }
 
