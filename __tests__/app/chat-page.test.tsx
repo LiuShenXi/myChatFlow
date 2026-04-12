@@ -7,6 +7,7 @@ import { useSessionStore } from "@/store/session-store"
 const useChatMock = jest.fn()
 const useSessionMock = jest.fn()
 const mockFocus = jest.fn()
+const latestInputAreaPropsHolder: { current: unknown } = { current: null }
 
 jest.mock("ai/react", () => ({
   useChat: (...args: unknown[]) => useChatMock(...args)

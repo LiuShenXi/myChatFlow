@@ -112,3 +112,11 @@ export function parseCustomModelId(modelId: string) {
 
   return modelId.slice(CUSTOM_MODEL_PREFIX.length) || null
 }
+
+export function modelSupportsImageInput(modelId: string) {
+  if (isCustomModelId(modelId)) {
+    return true
+  }
+
+  return getModelConfig(modelId)?.supportsVision ?? false
+}
