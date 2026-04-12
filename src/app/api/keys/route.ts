@@ -17,7 +17,8 @@ export async function GET() {
     },
     select: {
       provider: true,
-      updatedAt: true
+      updatedAt: true,
+      endpointId: true
     }
   })
 
@@ -31,12 +32,26 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  const { provider, apiKey } = (await req.json()) as {
+  const { provider, apiKey, endpointId } = (await req.json()) as {
     provider: ModelProvider
     apiKey: string
+    endpointId?: string
+  }
+
+  if (provider === "doubao" && !endpointId?.trim()) {
+    return NextResponse.json(
+      {
+        error: "请先填写豆包 endpoint-id"
+      },
+      {
+        status: 400
+      }
+    )
   }
 
   const encryptedKey = encrypt(apiKey)
+  const normalizedEndpointId =
+    provider === "doubao" ? endpointId?.trim() ?? null : null
 
   await prisma.apiKey.upsert({
     where: {
@@ -48,10 +63,12 @@ export async function POST(req: Request) {
     create: {
       userId: session.user.id,
       provider,
-      encryptedKey
+      encryptedKey,
+      endpointId: normalizedEndpointId
     },
     update: {
-      encryptedKey
+      encryptedKey,
+      endpointId: normalizedEndpointId
     }
   })
 

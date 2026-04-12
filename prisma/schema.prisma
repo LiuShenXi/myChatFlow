@@ -92,6 +92,7 @@ model ApiKey {
   userId       String
   provider     String
   encryptedKey String   @db.Text
+  endpointId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

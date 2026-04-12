@@ -59,10 +59,28 @@ export async function POST(req: Request) {
       )
     }
 
+    if (modelConfig.provider === "doubao" && !apiKeyRecord.endpointId?.trim()) {
+      return new Response(
+        JSON.stringify({
+          error: "请先在设置中配置豆包 endpoint-id"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      )
+    }
+
     const apiKey = decrypt(apiKeyRecord.encryptedKey)
+    const resolvedModelId =
+      modelConfig.provider === "doubao"
+        ? apiKeyRecord.endpointId!.trim()
+        : modelConfig.modelId
     const provider = getProvider(
       modelConfig.provider,
-      modelConfig.modelId,
+      resolvedModelId,
       apiKey
     )
 

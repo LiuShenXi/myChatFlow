@@ -39,6 +39,61 @@ describe("ApiKeyManager", () => {
     expect(screen.getByText("GLM")).toBeInTheDocument()
     expect(screen.getByText("Kimi")).toBeInTheDocument()
     expect(screen.getByText("豆包")).toBeInTheDocument()
+    expect(screen.getByLabelText("豆包 endpoint-id")).toBeInTheDocument()
+  })
+
+  it("should keep the doubao save button disabled without endpoint id", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => []
+    })
+
+    render(<ApiKeyManager />)
+
+    fireEvent.change(await screen.findByLabelText("豆包 API Key"), {
+      target: { value: "doubao-key" }
+    })
+
+    expect(
+      screen.getByRole("button", { name: "保存 豆包 API Key" })
+    ).toBeDisabled()
+  })
+
+  it("should save doubao api key together with endpoint id", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      })
+
+    render(<ApiKeyManager />)
+
+    fireEvent.change(await screen.findByLabelText("豆包 API Key"), {
+      target: { value: "doubao-key" }
+    })
+    fireEvent.change(screen.getByLabelText("豆包 endpoint-id"), {
+      target: { value: "ep-20260412" }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "保存 豆包 API Key" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/keys",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "doubao",
+            apiKey: "doubao-key",
+            endpointId: "ep-20260412"
+          })
+        })
+      )
+    })
   })
 
   it("should save a provider api key and clear the input", async () => {

@@ -195,4 +195,75 @@ describe("/api/chat route", () => {
       "decrypted-value"
     )
   })
+
+  it("should reject doubao chat requests when endpoint id is missing", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({
+      encryptedKey: "encrypted-value",
+      endpointId: null
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "doubao-seed-1-6",
+          messages: [
+            {
+              role: "user",
+              content: "你好"
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "请先在设置中配置豆包 endpoint-id"
+    })
+  })
+
+  it("should use doubao endpoint id instead of the static model id", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({
+      encryptedKey: "encrypted-value",
+      endpointId: "ep-20260412"
+    })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "doubao-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "doubao-seed-1-6",
+          messages: [
+            {
+              role: "user",
+              content: "你好"
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(getProviderMock).toHaveBeenCalledWith(
+      "doubao",
+      "ep-20260412",
+      "decrypted-value"
+    )
+  })
 })

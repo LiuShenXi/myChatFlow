@@ -42,7 +42,8 @@ describe("/api/keys route", () => {
     const keys = [
       {
         provider: "openai",
-        updatedAt: "2026-04-12T00:00:00.000Z"
+        updatedAt: "2026-04-12T00:00:00.000Z",
+        endpointId: null
       }
     ]
 
@@ -56,9 +57,31 @@ describe("/api/keys route", () => {
       where: { userId: "user-1" },
       select: {
         provider: true,
-        updatedAt: true
+        updatedAt: true,
+        endpointId: true
       }
     })
+  })
+
+  it("should include doubao endpoint id in the key list", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findManyMock.mockResolvedValue([
+      {
+        provider: "doubao",
+        updatedAt: "2026-04-12T00:00:00.000Z",
+        endpointId: "ep-20260412"
+      }
+    ])
+
+    const response = await GET()
+
+    await expect(response.json()).resolves.toEqual([
+      {
+        provider: "doubao",
+        updatedAt: "2026-04-12T00:00:00.000Z",
+        endpointId: "ep-20260412"
+      }
+    ])
   })
 
   it("should upsert an encrypted api key", async () => {
@@ -90,10 +113,73 @@ describe("/api/keys route", () => {
       create: {
         userId: "user-1",
         provider: "openai",
-        encryptedKey: "encrypted-key"
+        encryptedKey: "encrypted-key",
+        endpointId: null
       },
       update: {
-        encryptedKey: "encrypted-key"
+        encryptedKey: "encrypted-key",
+        endpointId: null
+      }
+    })
+  })
+
+  it("should reject saving doubao keys without an endpoint id", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+
+    const response = await POST(
+      new Request("http://localhost/api/keys", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          provider: "doubao",
+          apiKey: "doubao-key"
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "请先填写豆包 endpoint-id"
+    })
+  })
+
+  it("should save doubao keys together with endpoint id", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    encryptMock.mockReturnValue("encrypted-key")
+
+    const response = await POST(
+      new Request("http://localhost/api/keys", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          provider: "doubao",
+          apiKey: "doubao-key",
+          endpointId: "ep-20260412"
+        })
+      })
+    )
+
+    await expect(response.json()).resolves.toEqual({ success: true })
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: {
+        userId_provider: {
+          userId: "user-1",
+          provider: "doubao"
+        }
+      },
+      create: {
+        userId: "user-1",
+        provider: "doubao",
+        encryptedKey: "encrypted-key",
+        endpointId: "ep-20260412"
+      },
+      update: {
+        encryptedKey: "encrypted-key",
+        endpointId: "ep-20260412"
       }
     })
   })

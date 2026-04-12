@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input"
 export function ApiKeyManager() {
   const providers = getApiKeyProviders()
   const [keys, setKeys] = useState<Partial<Record<ModelProvider, string>>>({})
+  const [endpointIds, setEndpointIds] = useState<
+    Partial<Record<ModelProvider, string>>
+  >({})
   const [savedProviders, setSavedProviders] = useState<ModelProvider[]>([])
   const [showKeys, setShowKeys] = useState<Partial<Record<ModelProvider, boolean>>>(
     {}
@@ -24,8 +27,20 @@ export function ApiKeyManager() {
           return
         }
 
-        const data = (await response.json()) as Array<{ provider: ModelProvider }>
+        const data = (await response.json()) as Array<{
+          provider: ModelProvider
+          endpointId?: string | null
+        }>
         setSavedProviders(data.map((item) => item.provider))
+        setEndpointIds(
+          data.reduce<Partial<Record<ModelProvider, string>>>((result, item) => {
+            if (item.provider === "doubao" && item.endpointId) {
+              result.doubao = item.endpointId
+            }
+
+            return result
+          }, {})
+        )
       } catch {
         // Ignore load failures and keep the current UI state.
       }
@@ -36,8 +51,9 @@ export function ApiKeyManager() {
 
   const handleSave = async (provider: ModelProvider) => {
     const apiKey = keys[provider]?.trim()
+    const endpointId = endpointIds[provider]?.trim()
 
-    if (!apiKey) {
+    if (!apiKey || (provider === "doubao" && !endpointId)) {
       return
     }
 
@@ -51,7 +67,8 @@ export function ApiKeyManager() {
         },
         body: JSON.stringify({
           provider,
-          apiKey
+          apiKey,
+          endpointId: provider === "doubao" ? endpointId : undefined
         })
       })
 
@@ -66,6 +83,12 @@ export function ApiKeyManager() {
         ...current,
         [provider]: ""
       }))
+      if (provider === "doubao" && endpointId) {
+        setEndpointIds((current) => ({
+          ...current,
+          doubao: endpointId
+        }))
+      }
     } finally {
       setSavingProvider(null)
     }
@@ -104,6 +127,10 @@ export function ApiKeyManager() {
         const inputId = `${provider.id}-api-key`
         const isSaved = savedProviders.includes(provider.id)
         const isVisible = Boolean(showKeys[provider.id])
+        const canSave =
+          provider.id === "doubao"
+            ? Boolean(keys[provider.id]?.trim() && endpointIds.doubao?.trim())
+            : Boolean(keys[provider.id]?.trim())
 
         return (
           <div key={provider.id} className="space-y-2">
@@ -157,11 +184,27 @@ export function ApiKeyManager() {
                 </Button>
               </div>
 
+              {provider.id === "doubao" ? (
+                <Input
+                  id="doubao-endpoint-id"
+                  type="text"
+                  placeholder="输入豆包 endpoint-id"
+                  value={endpointIds.doubao ?? ""}
+                  aria-label="豆包 endpoint-id"
+                  onChange={(event) =>
+                    setEndpointIds((current) => ({
+                      ...current,
+                      doubao: event.target.value
+                    }))
+                  }
+                />
+              ) : null}
+
               <Button
                 type="button"
                 size="icon"
                 aria-label={`保存 ${provider.name} API Key`}
-                disabled={!keys[provider.id]?.trim() || savingProvider === provider.id}
+                disabled={!canSave || savingProvider === provider.id}
                 onClick={() => void handleSave(provider.id)}
               >
                 <Save className="h-4 w-4" />
