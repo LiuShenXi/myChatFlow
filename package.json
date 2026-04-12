@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "doctor": "node scripts/doctor.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "verify:local": "node scripts/verify-local.cjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

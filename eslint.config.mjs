@@ -19,6 +19,12 @@ const config = [
       "build/**",
       "next-env.d.ts"
     ]
+  },
+  {
+    files: ["scripts/**/*.cjs", "__tests__/scripts/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off"
+    }
   }
 ]
 
