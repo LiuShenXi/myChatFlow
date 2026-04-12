@@ -39,6 +39,7 @@ describe("ApiKeyManager", () => {
     expect(screen.getByText("GLM")).toBeInTheDocument()
     expect(screen.getByText("Kimi")).toBeInTheDocument()
     expect(screen.getByText("豆包")).toBeInTheDocument()
+    expect(screen.getByText("自定义 OpenAI-Compatible")).toBeInTheDocument()
     expect(screen.getByLabelText("豆包 endpoint-id")).toBeInTheDocument()
   })
 
@@ -54,9 +55,7 @@ describe("ApiKeyManager", () => {
       target: { value: "doubao-key" }
     })
 
-    expect(
-      screen.getByRole("button", { name: "保存 豆包 API Key" })
-    ).toBeDisabled()
+    expect(screen.getByRole("button", { name: "保存 豆包 API Key" })).toBeDisabled()
   })
 
   it("should save doubao api key together with endpoint id", async () => {

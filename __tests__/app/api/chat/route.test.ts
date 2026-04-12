@@ -1,10 +1,12 @@
 /** @jest-environment node */
 const authMock = jest.fn()
 const findUniqueMock = jest.fn()
+const customModelFindUniqueMock = jest.fn()
 const messageCreateMock = jest.fn()
 const sessionUpdateMock = jest.fn()
 const decryptMock = jest.fn()
 const getProviderMock = jest.fn()
+const createCustomProviderMock = jest.fn()
 const streamTextMock = jest.fn()
 
 jest.mock("ai", () => ({
@@ -20,6 +22,9 @@ jest.mock("@/lib/db/prisma", () => ({
     apiKey: {
       findUnique: (...args: unknown[]) => findUniqueMock(...args)
     },
+    customModelConfig: {
+      findUnique: (...args: unknown[]) => customModelFindUniqueMock(...args)
+    },
     message: {
       create: (...args: unknown[]) => messageCreateMock(...args)
     },
@@ -34,7 +39,9 @@ jest.mock("@/lib/auth/encryption", () => ({
 }))
 
 jest.mock("@/lib/ai/providers", () => ({
-  getProvider: (...args: unknown[]) => getProviderMock(...args)
+  getProvider: (...args: unknown[]) => getProviderMock(...args),
+  createCustomOpenAICompatibleModel: (...args: unknown[]) =>
+    createCustomProviderMock(...args)
 }))
 
 import { POST } from "@/app/api/chat/route"
@@ -265,5 +272,79 @@ describe("/api/chat route", () => {
       "ep-20260412",
       "decrypted-value"
     )
+  })
+
+  it("should use a custom model config when the current model is custom:<id>", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({
+      encryptedKey: "encrypted-custom-key"
+    })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "My Gateway",
+      baseUrl: "https://example.com/v1",
+      modelId: "gpt-4o-mini"
+    })
+    decryptMock.mockReturnValue("decrypted-custom-key")
+    createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: [{ role: "user", content: "你好" }]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(customModelFindUniqueMock).toHaveBeenCalledWith({
+      where: { id: "cfg-1" }
+    })
+    expect(createCustomProviderMock).toHaveBeenCalledWith(
+      "https://example.com/v1",
+      "gpt-4o-mini",
+      "decrypted-custom-key"
+    )
+  })
+
+  it("should reject custom models when the custom-openai api key is missing", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "My Gateway",
+      baseUrl: "https://example.com/v1",
+      modelId: "gpt-4o-mini"
+    })
+    findUniqueMock.mockResolvedValue(null)
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: []
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "请先在设置中配置 custom-openai 的 API Key"
+    })
   })
 })

@@ -10,6 +10,7 @@ export type ModelProvider =
   | "glm"
   | "kimi"
   | "doubao"
+  | "custom-openai"
 
 type OpenAICompatibleProviderId = Exclude<ModelProvider, "anthropic">
 
@@ -65,6 +66,12 @@ const OPENAI_COMPATIBLE_PROVIDER_META: Record<
     baseURL: "https://ark.cn-beijing.volces.com/api/v3",
     compatibility: "compatible",
     apiKeyPlaceholder: "your-doubao-api-key"
+  },
+  "custom-openai": {
+    id: "custom-openai",
+    name: "自定义 OpenAI-Compatible",
+    compatibility: "compatible",
+    apiKeyPlaceholder: "sk-..."
   }
 }
 
@@ -75,7 +82,8 @@ const API_KEY_PROVIDER_ORDER: ModelProvider[] = [
   "qwen",
   "glm",
   "kimi",
-  "doubao"
+  "doubao",
+  "custom-openai"
 ]
 
 export function getOpenAICompatibleProviderMeta(
@@ -122,6 +130,19 @@ function createOpenAICompatibleModel(
   })
 
   return client(modelId)
+}
+
+export function createCustomOpenAICompatibleModel(
+  baseURL: string,
+  modelId: string,
+  apiKey: string
+) {
+  return createOpenAI({
+    apiKey,
+    baseURL,
+    compatibility: "compatible",
+    name: "custom-openai"
+  })(modelId)
 }
 
 export function getProvider(

@@ -184,6 +184,45 @@ describe("/api/keys route", () => {
     })
   })
 
+  it("should save a custom-openai api key like other compatible providers", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    encryptMock.mockReturnValue("encrypted-key")
+
+    const response = await POST(
+      new Request("http://localhost/api/keys", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          provider: "custom-openai",
+          apiKey: "sk-custom-test"
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ success: true })
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: {
+        userId_provider: {
+          userId: "user-1",
+          provider: "custom-openai"
+        }
+      },
+      create: {
+        userId: "user-1",
+        provider: "custom-openai",
+        encryptedKey: "encrypted-key",
+        endpointId: null
+      },
+      update: {
+        encryptedKey: "encrypted-key",
+        endpointId: null
+      }
+    })
+  })
+
   it("should delete a saved provider key", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
 

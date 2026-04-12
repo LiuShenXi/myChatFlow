@@ -1,4 +1,9 @@
-import { AVAILABLE_MODELS, getModelConfig } from "@/types/model"
+import {
+  AVAILABLE_MODELS,
+  getModelConfig,
+  isCustomModelId,
+  parseCustomModelId
+} from "@/types/model"
 
 describe("model catalog", () => {
   it("should include domestic text models", () => {
@@ -22,5 +27,16 @@ describe("model catalog", () => {
       provider: "kimi",
       modelId: "moonshot-v1-8k"
     })
+  })
+
+  it("should recognize custom model ids", () => {
+    expect(isCustomModelId("custom:cfg-1")).toBe(true)
+    expect(parseCustomModelId("custom:cfg-1")).toBe("cfg-1")
+  })
+
+  it("should return null for non-custom model ids", () => {
+    expect(isCustomModelId("gpt-4")).toBe(false)
+    expect(parseCustomModelId("gpt-4")).toBeNull()
+    expect(parseCustomModelId("custom:")).toBeNull()
   })
 })

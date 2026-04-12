@@ -95,6 +95,20 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   }
 ]
 
+export const CUSTOM_MODEL_PREFIX = "custom:"
+
 export function getModelConfig(modelId: string): ModelConfig | undefined {
   return AVAILABLE_MODELS.find((model) => model.id === modelId)
+}
+
+export function isCustomModelId(modelId: string) {
+  return modelId.startsWith(CUSTOM_MODEL_PREFIX)
+}
+
+export function parseCustomModelId(modelId: string) {
+  if (!isCustomModelId(modelId)) {
+    return null
+  }
+
+  return modelId.slice(CUSTOM_MODEL_PREFIX.length) || null
 }

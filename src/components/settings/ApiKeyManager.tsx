@@ -31,6 +31,7 @@ export function ApiKeyManager() {
           provider: ModelProvider
           endpointId?: string | null
         }>
+
         setSavedProviders(data.map((item) => item.provider))
         setEndpointIds(
           data.reduce<Partial<Record<ModelProvider, string>>>((result, item) => {
@@ -49,7 +50,7 @@ export function ApiKeyManager() {
     void loadKeys()
   }, [])
 
-  const handleSave = async (provider: ModelProvider) => {
+  async function handleSave(provider: ModelProvider) {
     const apiKey = keys[provider]?.trim()
     const endpointId = endpointIds[provider]?.trim()
 
@@ -83,6 +84,7 @@ export function ApiKeyManager() {
         ...current,
         [provider]: ""
       }))
+
       if (provider === "doubao" && endpointId) {
         setEndpointIds((current) => ({
           ...current,
@@ -94,7 +96,7 @@ export function ApiKeyManager() {
     }
   }
 
-  const handleDelete = async (provider: ModelProvider) => {
+  async function handleDelete(provider: ModelProvider) {
     try {
       const response = await fetch("/api/keys", {
         method: "DELETE",
@@ -146,13 +148,15 @@ export function ApiKeyManager() {
               ) : null}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1">
                 <Input
                   id={inputId}
                   type={isVisible ? "text" : "password"}
                   placeholder={
-                    isSaved ? `输入新的 ${provider.name} Key 以更新` : provider.placeholder
+                    isSaved
+                      ? `输入新的 ${provider.name} Key 以更新`
+                      : provider.placeholder
                   }
                   value={keys[provider.id] ?? ""}
                   onChange={(event) =>
@@ -200,27 +204,29 @@ export function ApiKeyManager() {
                 />
               ) : null}
 
-              <Button
-                type="button"
-                size="icon"
-                aria-label={`保存 ${provider.name} API Key`}
-                disabled={!canSave || savingProvider === provider.id}
-                onClick={() => void handleSave(provider.id)}
-              >
-                <Save className="h-4 w-4" />
-              </Button>
-
-              {isSaved ? (
+              <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="destructive"
                   size="icon"
-                  aria-label={`删除 ${provider.name} API Key`}
-                  onClick={() => void handleDelete(provider.id)}
+                  aria-label={`保存 ${provider.name} API Key`}
+                  disabled={!canSave || savingProvider === provider.id}
+                  onClick={() => void handleSave(provider.id)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Save className="h-4 w-4" />
                 </Button>
-              ) : null}
+
+                {isSaved ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    aria-label={`删除 ${provider.name} API Key`}
+                    onClick={() => void handleDelete(provider.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
         )

@@ -1,4 +1,5 @@
 import {
+  createCustomOpenAICompatibleModel,
   getOpenAICompatibleProviderMeta,
   getProvider,
   type ModelProvider
@@ -10,6 +11,13 @@ describe("AI providers", () => {
       id: "qwen",
       name: "Qwen",
       baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    })
+  })
+
+  it('should expose custom-openai metadata for api key settings', () => {
+    expect(getOpenAICompatibleProviderMeta("custom-openai")).toMatchObject({
+      id: "custom-openai",
+      name: "自定义 OpenAI-Compatible"
     })
   })
 
@@ -55,6 +63,16 @@ describe("AI providers", () => {
 
   it('should return doubao provider for "doubao"', () => {
     const provider = getProvider("doubao", "doubao-seed-1.6", "test-key")
+
+    expect(provider).toBeDefined()
+  })
+
+  it("should create a custom compatible provider with a dynamic base url", () => {
+    const provider = createCustomOpenAICompatibleModel(
+      "https://example.com/v1",
+      "gpt-4o-mini",
+      "test-key"
+    )
 
     expect(provider).toBeDefined()
   })

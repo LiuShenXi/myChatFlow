@@ -32,6 +32,10 @@ jest.mock("@/components/settings/ApiKeyManager", () => ({
   ApiKeyManager: () => <div>API Key 管理器</div>
 }))
 
+jest.mock("@/components/settings/CustomModelManager", () => ({
+  CustomModelManager: () => <div>自定义模型</div>
+}))
+
 describe("SettingsDialog", () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -51,11 +55,12 @@ describe("SettingsDialog", () => {
     expect(screen.queryByText("设置")).not.toBeInTheDocument()
   })
 
-  it("should render the dialog title and api key manager when open", () => {
+  it("should render the dialog title, api key manager, and custom model manager when open", () => {
     render(<SettingsDialog open={true} onOpenChange={jest.fn()} />)
 
     expect(screen.getByText("设置")).toBeInTheDocument()
     expect(screen.getByText("API Key 管理器")).toBeInTheDocument()
+    expect(screen.getByText("自定义模型")).toBeInTheDocument()
   })
 
   it("should show an auth prompt when unauthenticated", () => {

@@ -1,10 +1,13 @@
 import { streamText } from "ai"
 import { decrypt } from "@/lib/auth/encryption"
 import { auth } from "@/lib/auth/next-auth"
-import { getProvider } from "@/lib/ai/providers"
+import {
+  createCustomOpenAICompatibleModel,
+  getProvider
+} from "@/lib/ai/providers"
 import { createErrorResponse } from "@/lib/ai/stream-handler"
 import { prisma } from "@/lib/db/prisma"
-import { getModelConfig } from "@/types/model"
+import { getModelConfig, parseCustomModelId } from "@/types/model"
 
 type IncomingMessage = {
   role: "user" | "assistant" | "system"
@@ -30,17 +33,37 @@ export async function POST(req: Request) {
       sessionId: string
     } = await req.json()
 
-    const modelConfig = getModelConfig(modelId)
+    const staticModelConfig = getModelConfig(modelId)
+    const customModelId = parseCustomModelId(modelId)
 
-    if (!modelConfig) {
+    if (!staticModelConfig && !customModelId) {
       return new Response("Invalid model", { status: 400 })
     }
+
+    const customModelConfig = customModelId
+      ? await prisma.customModelConfig.findUnique({
+          where: {
+            id: customModelId
+          }
+        })
+      : null
+
+    if (
+      customModelId &&
+      (!customModelConfig || customModelConfig.userId !== session.user.id)
+    ) {
+      return new Response("Invalid model", { status: 400 })
+    }
+
+    const providerId = customModelConfig
+      ? "custom-openai"
+      : staticModelConfig!.provider
 
     const apiKeyRecord = await prisma.apiKey.findUnique({
       where: {
         userId_provider: {
           userId: session.user.id,
-          provider: modelConfig.provider
+          provider: providerId
         }
       }
     })
@@ -48,7 +71,7 @@ export async function POST(req: Request) {
     if (!apiKeyRecord) {
       return new Response(
         JSON.stringify({
-          error: `请先在设置中配置 ${modelConfig.provider} 的 API Key`
+          error: `请先在设置中配置 ${providerId} 的 API Key`
         }),
         {
           status: 400,
@@ -59,7 +82,10 @@ export async function POST(req: Request) {
       )
     }
 
-    if (modelConfig.provider === "doubao" && !apiKeyRecord.endpointId?.trim()) {
+    if (
+      staticModelConfig?.provider === "doubao" &&
+      !apiKeyRecord.endpointId?.trim()
+    ) {
       return new Response(
         JSON.stringify({
           error: "请先在设置中配置豆包 endpoint-id"
@@ -74,15 +100,19 @@ export async function POST(req: Request) {
     }
 
     const apiKey = decrypt(apiKeyRecord.encryptedKey)
-    const resolvedModelId =
-      modelConfig.provider === "doubao"
-        ? apiKeyRecord.endpointId!.trim()
-        : modelConfig.modelId
-    const provider = getProvider(
-      modelConfig.provider,
-      resolvedModelId,
-      apiKey
-    )
+    const provider = customModelConfig
+      ? createCustomOpenAICompatibleModel(
+          customModelConfig.baseUrl,
+          customModelConfig.modelId,
+          apiKey
+        )
+      : getProvider(
+          staticModelConfig!.provider,
+          staticModelConfig!.provider === "doubao"
+            ? apiKeyRecord.endpointId!.trim()
+            : staticModelConfig!.modelId,
+          apiKey
+        )
 
     const result = await streamText({
       model: provider,

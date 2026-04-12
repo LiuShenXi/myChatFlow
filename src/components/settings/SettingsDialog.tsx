@@ -2,6 +2,8 @@
 
 import { useSession } from "next-auth/react"
 import { AuthPrompt } from "@/components/auth/AuthPrompt"
+import { ApiKeyManager } from "@/components/settings/ApiKeyManager"
+import { CustomModelManager } from "@/components/settings/CustomModelManager"
 import {
   Dialog,
   DialogContent,
@@ -9,7 +11,6 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { ApiKeyManager } from "@/components/settings/ApiKeyManager"
 
 export function SettingsDialog({
   open,
@@ -22,7 +23,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
         </DialogHeader>
@@ -37,7 +38,11 @@ export function SettingsDialog({
         ) : status === "loading" ? (
           <p className="text-sm text-muted-foreground">正在检查登录状态...</p>
         ) : (
-          <ApiKeyManager />
+          <div className="space-y-4">
+            <ApiKeyManager />
+            <Separator />
+            <CustomModelManager />
+          </div>
         )}
       </DialogContent>
     </Dialog>
