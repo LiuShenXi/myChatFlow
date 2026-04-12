@@ -4,6 +4,12 @@ import { useSessionStore } from "@/store/session-store"
 import { useSettingsStore } from "@/store/settings-store"
 import type { ChatSession } from "@/types/chat"
 
+const useSessionMock = jest.fn()
+
+jest.mock("next-auth/react", () => ({
+  useSession: () => useSessionMock()
+}))
+
 jest.mock("@/components/ui/sheet", () => ({
   Sheet: ({
     open,
@@ -45,6 +51,14 @@ describe("SessionDrawer", () => {
     jest.clearAllMocks()
     fetchMock.mockReset()
     global.fetch = fetchMock as unknown as typeof fetch
+    useSessionMock.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          id: "user-1"
+        }
+      }
+    })
 
     useSessionStore.setState({
       sessions: [],
@@ -69,7 +83,10 @@ describe("SessionDrawer", () => {
   it("should load and render sessions, then select one", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => [createSession(), createSession({ id: "session-2", title: "第二条会话" })]
+      json: async () => [
+        createSession(),
+        createSession({ id: "session-2", title: "第二条会话" })
+      ]
     })
 
     render(<SessionDrawer />)
@@ -87,7 +104,7 @@ describe("SessionDrawer", () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => []
+        json: async () => [createSession()]
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -177,5 +194,46 @@ describe("SessionDrawer", () => {
 
     expect(useSessionStore.getState().sessions).toEqual([])
     expect(useSessionStore.getState().currentSessionId).toBeNull()
+  })
+
+  it("should show an auth prompt instead of loading sessions when unauthenticated", () => {
+    useSessionMock.mockReturnValue({
+      status: "unauthenticated",
+      data: null
+    })
+
+    render(<SessionDrawer />)
+
+    expect(screen.getByText("登录后才能查看和创建会话")).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("should auto-create the first session when the user has no sessions", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          createSession({ id: "session-auto", title: "新对话", model: "gpt-4" })
+      })
+
+    render(<SessionDrawer />)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/sessions",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ model: "gpt-4" })
+        })
+      )
+    })
+
+    expect(useSessionStore.getState().currentSessionId).toBe("session-auto")
+    expect(useSessionStore.getState().sessions[0]?.id).toBe("session-auto")
   })
 })

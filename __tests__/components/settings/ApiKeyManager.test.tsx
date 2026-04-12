@@ -27,6 +27,20 @@ describe("ApiKeyManager", () => {
     expect(screen.getByText("OpenAI")).toBeInTheDocument()
   })
 
+  it("should render domestic provider inputs", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => []
+    })
+
+    render(<ApiKeyManager />)
+
+    expect(await screen.findByText("Qwen")).toBeInTheDocument()
+    expect(screen.getByText("GLM")).toBeInTheDocument()
+    expect(screen.getByText("Kimi")).toBeInTheDocument()
+    expect(screen.getByText("豆包")).toBeInTheDocument()
+  })
+
   it("should save a provider api key and clear the input", async () => {
     fetchMock
       .mockResolvedValueOnce({
@@ -61,6 +75,39 @@ describe("ApiKeyManager", () => {
 
     expect(screen.getByLabelText("OpenAI API Key")).toHaveValue("")
     expect(screen.getByText("已配置")).toBeInTheDocument()
+  })
+
+  it("should save a qwen api key", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => []
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      })
+
+    render(<ApiKeyManager />)
+
+    fireEvent.change(await screen.findByLabelText("Qwen API Key"), {
+      target: { value: "sk-qwen-test" }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "保存 Qwen API Key" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/keys",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "qwen",
+            apiKey: "sk-qwen-test"
+          })
+        })
+      )
+    })
   })
 
   it("should delete a configured provider key", async () => {

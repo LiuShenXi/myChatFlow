@@ -1,4 +1,4 @@
-export type ModelProvider = "openai" | "anthropic" | "deepseek"
+import type { ModelProvider } from "@/lib/ai/providers"
 
 export interface ModelConfig {
   id: string
@@ -35,6 +35,62 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     name: "DeepSeek Chat",
     provider: "deepseek",
     modelId: "deepseek-chat",
+    supportsVision: false
+  },
+  {
+    id: "qwen-plus",
+    name: "Qwen Plus",
+    provider: "qwen",
+    modelId: "qwen-plus",
+    supportsVision: false
+  },
+  {
+    id: "qwen-turbo",
+    name: "Qwen Turbo",
+    provider: "qwen",
+    modelId: "qwen-turbo",
+    supportsVision: false
+  },
+  {
+    id: "glm-5",
+    name: "GLM-5",
+    provider: "glm",
+    modelId: "glm-5",
+    supportsVision: false
+  },
+  {
+    id: "glm-4-7",
+    name: "GLM-4.7",
+    provider: "glm",
+    modelId: "glm-4.7",
+    supportsVision: false
+  },
+  {
+    id: "moonshot-v1-8k",
+    name: "Kimi Moonshot v1 8K",
+    provider: "kimi",
+    modelId: "moonshot-v1-8k",
+    supportsVision: false
+  },
+  {
+    id: "kimi-k2",
+    name: "Kimi K2",
+    provider: "kimi",
+    modelId: "kimi-k2-0905-preview",
+    supportsVision: false
+  },
+  {
+    id: "doubao-seed-1-6",
+    name: "豆包 Seed 1.6",
+    provider: "doubao",
+    modelId: "doubao-seed-1.6",
+    supportsVision: false
+  },
+  {
+    id: "doubao-seed-1-6-flash",
+    name: "豆包 Seed 1.6 Flash",
+    provider: "doubao",
+    modelId: "doubao-seed-1.6-flash",
     supportsVision: false
   }
 ]

@@ -16,6 +16,7 @@ describe("Header", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     useSessionMock.mockReturnValue({
+      status: "authenticated",
       data: {
         user: {
           name: "测试用户",
@@ -48,7 +49,7 @@ describe("Header", () => {
     render(<Header onOpenSettings={jest.fn()} />)
 
     expect(screen.getByText("ChatFlow")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /当前模型/i })).toHaveTextContent(
+    expect(screen.getByRole("button", { name: "当前模型" })).toHaveTextContent(
       "GPT-4"
     )
   })
@@ -69,5 +70,19 @@ describe("Header", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开设置" }))
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it("should render a login button when the user is not authenticated", () => {
+    useSessionMock.mockReturnValue({
+      status: "unauthenticated",
+      data: null
+    })
+
+    render(<Header onOpenSettings={jest.fn()} />)
+
+    expect(screen.getByRole("link", { name: "登录" })).toHaveAttribute(
+      "href",
+      "/login"
+    )
   })
 })

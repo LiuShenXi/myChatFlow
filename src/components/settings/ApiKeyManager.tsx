@@ -2,33 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { Check, Eye, EyeOff, Save, Trash2 } from "lucide-react"
-import type { ModelProvider } from "@/lib/ai/providers"
+import { getApiKeyProviders, type ModelProvider } from "@/lib/ai/providers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const PROVIDERS: Array<{
-  id: ModelProvider
-  name: string
-  placeholder: string
-}> = [
-  {
-    id: "openai",
-    name: "OpenAI",
-    placeholder: "sk-..."
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    placeholder: "sk-ant-..."
-  },
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    placeholder: "sk-..."
-  }
-]
-
 export function ApiKeyManager() {
+  const providers = getApiKeyProviders()
   const [keys, setKeys] = useState<Partial<Record<ModelProvider, string>>>({})
   const [savedProviders, setSavedProviders] = useState<ModelProvider[]>([])
   const [showKeys, setShowKeys] = useState<Partial<Record<ModelProvider, boolean>>>(
@@ -121,7 +100,7 @@ export function ApiKeyManager() {
         </p>
       </div>
 
-      {PROVIDERS.map((provider) => {
+      {providers.map((provider) => {
         const inputId = `${provider.id}-api-key`
         const isSaved = savedProviders.includes(provider.id)
         const isVisible = Boolean(showKeys[provider.id])

@@ -19,7 +19,7 @@ export function Header({
 }: {
   onOpenSettings: () => void
 }) {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const { toggleSessionList } = useSettingsStore()
 
   return (
@@ -69,6 +69,13 @@ export function Header({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : status === "unauthenticated" ? (
+          <a
+            href="/login"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            登录
+          </a>
         ) : null}
       </div>
     </header>

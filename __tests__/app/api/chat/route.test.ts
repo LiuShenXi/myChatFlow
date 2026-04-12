@@ -159,4 +159,40 @@ describe("/api/chat route", () => {
       data: { updatedAt: expect.any(Date) }
     })
   })
+
+  it("should use the qwen provider when the selected model is qwen-plus", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "qwen-model" })
+    streamTextMock.mockImplementation(async () => ({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    }))
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "qwen-plus",
+          messages: [
+            {
+              role: "user",
+              content: "你好"
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(getProviderMock).toHaveBeenCalledWith(
+      "qwen",
+      "qwen-plus",
+      "decrypted-value"
+    )
+  })
 })

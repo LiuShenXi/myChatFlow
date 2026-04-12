@@ -2,12 +2,15 @@
 
 import { useEffect } from "react"
 import { useChat } from "ai/react"
+import { useSession } from "next-auth/react"
+import { AuthPrompt } from "@/components/auth/AuthPrompt"
 import { InputArea } from "@/components/chat/InputArea"
 import { MessageList } from "@/components/chat/MessageList"
 import { useChatStore } from "@/store/chat-store"
 import { useSessionStore } from "@/store/session-store"
 
 export default function ChatPage() {
+  const { status } = useSession()
   const currentSessionId = useSessionStore((state) => state.currentSessionId)
   const currentModel = useSessionStore((state) => state.currentModel)
   const setIsStreaming = useChatStore((state) => state.setIsStreaming)
@@ -28,7 +31,7 @@ export default function ChatPage() {
   })
 
   useEffect(() => {
-    if (!currentSessionId) {
+    if (status !== "authenticated" || !currentSessionId) {
       setMessages([])
       return
     }
@@ -57,20 +60,31 @@ export default function ChatPage() {
     }
 
     void loadMessages()
-  }, [currentSessionId, setMessages])
+  }, [currentSessionId, setMessages, status])
 
   useEffect(() => {
     setIsStreaming(isLoading)
   }, [isLoading, setIsStreaming])
 
+  const isInputDisabled =
+    isLoading || status !== "authenticated" || !currentSessionId
+
   return (
     <>
+      {status === "unauthenticated" ? (
+        <div className="px-4 pt-4">
+          <AuthPrompt
+            title="登录后即可开始对话"
+            description="当前未登录，无法创建会话、发送消息或保存 API Key。"
+          />
+        </div>
+      ) : null}
       <MessageList messages={messages} isLoading={isLoading} />
       <InputArea
         input={input}
         setInput={setInput}
         onSubmit={handleSubmit}
-        disabled={isLoading || !currentSessionId}
+        disabled={isInputDisabled}
       />
     </>
   )

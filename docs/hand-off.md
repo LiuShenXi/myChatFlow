@@ -1,145 +1,270 @@
 # ChatFlow 本地联调交接说明
 
-## 当前项目状态
+## 本次已完成工作
 
-- ChatFlow 主线功能已经完成到可交付基础状态
-- 自动化验证基线已经固定为：
-  - `npx tsc --noEmit`
-  - `npm test -- --runInBand`
-  - `npm run lint`
-  - `npm run build`
-- 当前真正未闭环的是“真实环境联调”，不是功能开发
-- 下一次进入仓库时，优先完成本地环境准备、浏览器联调和结果归档，再决定是否继续新需求
+### 1. 本地联调收口包
 
-## 开始前检查
+- 新增 `npm run doctor`
+  - 检查 `.env.local` / `.env`
+  - 区分“启动阻塞项”和“真实联调阻塞项”
+- 新增 `npm run verify:local`
+  - 串行执行 `npx tsc --noEmit`
+  - 串行执行 `npm test -- --runInBand`
+  - 串行执行 `npm run lint`
+  - 串行执行 `npm run build`
+- 新增文档
+  - `docs/local-qa-checklist.md`
+  - `docs/superpowers/specs/2026-04-12-chatflow-handoff-and-local-verification-design.md`
+  - `docs/superpowers/plans/2026-04-12-chatflow-local-verification-closeout.md`
 
-第一次进入仓库，建议按下面顺序确认：
+### 2. 认证链路与登录页修复
 
-1. 先看 `docs/superpowers/specs/2026-04-12-chatflow-handoff-and-local-verification-design.md`
-2. 再看本文件，确认当前收口目标与执行顺序
-3. 检查是否存在 `.env.local`
-4. 运行 `npm install`
-5. 运行 `npm run doctor`
+- 修复 `UntrustedHost`
+  - 在 `src/lib/auth/auth.config.ts` 中加入 `trustHost: true`
+- 修复未配置 provider 也被注册的问题
+  - 现在只有真正配置完整的 OAuth provider 才会注册
+- 将登录页改为客户端触发 `signIn`
+  - 相关组件：`src/components/auth/LoginActions.tsx`
+- 本地 Google 登录已打通到系统首页
 
-如果 `npm run doctor` 仍显示启动阻塞项，就不要先跑浏览器联调。
+相关设计与测试：
 
-## 环境变量准备
+- `__tests__/lib/auth/auth.config.test.ts`
+- `__tests__/components/auth/LoginActions.test.tsx`
 
-从 `.env.example` 复制生成 `.env.local`，至少填入以下变量：
+### 3. 国产模型 provider 扩展
 
-- `POSTGRES_PRISMA_URL`
-- `POSTGRES_URL_NON_POOLING`
-- `NEXTAUTH_URL`
-- `NEXTAUTH_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `ENCRYPTION_KEY`
+当前项目已支持以下 provider：
 
-建议值：
+- `OpenAI`
+- `Anthropic`
+- `DeepSeek`
+- `Qwen`
+- `GLM`
+- `Kimi`
+- `豆包`
 
-- `NEXTAUTH_URL=http://localhost:3000`
-- `NEXTAUTH_SECRET` 使用 `openssl rand -base64 32` 生成
-- `ENCRYPTION_KEY` 使用 `openssl rand -hex 32` 生成，必须是 64 位十六进制字符串
+当前模型列表已扩展到：
 
-环境自检规则：
+- `GPT-4`
+- `GPT-4o`
+- `Claude 3.5 Sonnet`
+- `DeepSeek Chat`
+- `Qwen Plus`
+- `Qwen Turbo`
+- `GLM-5`
+- `GLM-4.7`
+- `Kimi Moonshot v1 8K`
+- `Kimi K2`
+- `豆包 Seed 1.6`
+- `豆包 Seed 1.6 Flash`
 
-- 启动阻塞项：数据库连接、`NEXTAUTH_URL`、`NEXTAUTH_SECRET`、`ENCRYPTION_KEY`
-- 真实联调阻塞项：Google/GitHub OAuth 变量
+实现方式：
 
-## 数据库准备
+- 将 `DeepSeek / Qwen / GLM / Kimi / 豆包` 统一收口到 OpenAI-compatible provider 注册表
+- `Anthropic` 仍保留独立实现
+- 设置页与模型选择器已支持新增 provider / model
 
-本地数据库最少要满足：
+相关文档：
 
-- PostgreSQL 实例可连通
-- `POSTGRES_PRISMA_URL` 与 `POSTGRES_URL_NON_POOLING` 对应同一个库
-- 当前用户拥有建表/更新 schema 的权限
+- `docs/superpowers/specs/2026-04-12-chatflow-domestic-provider-expansion-design.md`
+- `docs/superpowers/plans/2026-04-12-chatflow-domestic-provider-expansion.md`
 
-推荐命令顺序：
+### 4. 未登录提示与自动会话初始化
 
-1. `npx prisma generate`
-2. `npx prisma db push`
-3. 如需查看数据，可选执行 `npx prisma studio`
+已完成以下交互修复：
 
-如果 Prisma 命令失败，优先检查：
+- 未登录时，Header 显示“登录”按钮
+- 未登录时，设置弹窗显示“登录后才能配置 API Key”
+- 未登录时，会话抽屉显示“登录后才能查看和创建会话”
+- 未登录时，聊天主区显示“登录后即可开始对话”
+- 已登录但没有任何会话时，系统会自动创建第一条会话
+- 修复“已配置 Key 但输入框仍禁用”的问题
 
-- `.env.local` 中的数据库连接串是否填写完整
-- 数据库实例是否允许当前来源 IP 或本机访问
-- 连接串中的数据库名、用户名、密码是否正确
+相关组件：
 
-## OAuth 准备
+- `src/components/auth/AuthPrompt.tsx`
+- `src/components/layout/Header.tsx`
+- `src/components/settings/SettingsDialog.tsx`
+- `src/components/session/SessionDrawer.tsx`
+- `src/app/(chat)/page.tsx`
 
-至少准备一个可用的登录 Provider，推荐 Google 和 GitHub 都配好。
+相关文档：
 
-本地回调地址建议：
+- `docs/superpowers/specs/2026-04-12-chatflow-auth-aware-ux-and-auto-session-design.md`
+- `docs/superpowers/plans/2026-04-12-chatflow-auth-aware-ux-and-auto-session.md`
 
-- Google 回调：`http://localhost:3000/api/auth/callback/google`
-- GitHub 回调：`http://localhost:3000/api/auth/callback/github`
+## 当前验证状态
 
-排查优先级：
+最新一次已完成：
 
-1. 先确认 Provider 控制台里配置的回调地址和本地地址完全一致
-2. 再确认 `.env.local` 中的 Client ID / Secret 与控制台一致
-3. 最后再检查浏览器控制台和终端里的 NextAuth 报错
+- `npm run verify:local`
 
-## 启动项目
+结果：
 
-推荐执行顺序：
+- TypeScript：通过
+- Jest：通过
+- ESLint：通过
+- Next build：通过
+- 共 `23` 个 test suites、`94` 个 tests 全部通过
 
-1. `npm run doctor`
-2. `npm run verify:local`
-3. `npx prisma generate`
-4. `npx prisma db push`
-5. `npm run dev`
+## 当前工作区状态
 
-如果 `npm run verify:local` 在任一步失败，先修复失败项，不要跳过继续联调。
+当前仓库里存在尚未提交的改动，主要包括：
 
-## 浏览器联调路径
+- OAuth 与登录页修复
+- 国产 provider 扩展
+- 未登录提示与自动会话初始化
+- 对应测试
+- README 与 superpowers 设计/计划文档
 
-推荐从以下路径开始：
+注意：
 
-1. 访问 `http://localhost:3000/login`
-2. 验证登录页展示正常
-3. 先完成至少一个 OAuth Provider 登录
-4. 进入主界面后创建新对话
-5. 打开设置面板保存至少一个 Provider API Key
-6. 切换到对应模型并发送消息
-7. 验证会话切换、重命名、删除和退出登录
+- `.env` / `.env.local` 为本地忽略文件，不会进入 git
+- 当前仓库可能仍处于“有本地未提交改动”的联调状态
+- 不要用破坏性命令清空工作区
 
-完整清单见 `docs/local-qa-checklist.md`。
+## 当前已知事实
 
-## 常见问题排查
+### 1. API Key 是服务端持久化的
 
-### 环境类
+当前不是浏览器内存临时保存，而是：
 
-- 症状：`npm run doctor` 显示缺失项
-- 先看：`.env.local`
-- 再看：`scripts/doctor.cjs`
+- 前端 `POST /api/keys`
+- 服务端用 `ENCRYPTION_KEY` 加密
+- 加密后写入数据库 `ApiKey`
+- 刷新页面后通过 `GET /api/keys` 重新读取 provider 状态
 
-### Prisma / 构建类
+所以正常情况下，保存成功后不需要每次刷新重新配置。
 
-- 症状：`prisma generate`、`db push`、`next build` 失败
-- 先看：终端报错中的数据库连接或类型错误
-- 再跑：`npm run verify:local`
+### 2. API 未登录返回 `401` 是预期行为
 
-### 认证类
+当前页面路由不强制跳转登录页，但 API 保持标准语义：
 
-- 症状：登录页能打开，但 OAuth 跳转或回调失败
-- 先看：`.env.local` 中的 Provider 变量
-- 再看：OAuth 控制台的回调地址配置
+- 页面可以打开
+- `/api/keys`、`/api/sessions`、`/api/chat` 未登录时返回 `401`
+- 现在前端已补齐明确提示，不再是静默失败
 
-### 运行类
+### 3. 输入框之前长期禁用的根因
 
-- 症状：登录成功后无法保存 API Key、无法发送消息、模型切换异常
-- 先看：浏览器 Network 面板中的 `/api/keys`、`/api/chat`、`/api/sessions`
-- 再看：终端中的服务端报错
+之前输入框禁用依赖 `currentSessionId`，而系统不会自动创建首条会话。现在已修复为：
 
-## 收口标准
+- 登录后若没有会话，自动创建一条
+- 当前会话准备好后输入框自动可用
 
-满足以下条件后，才算完成本地联调收口：
+### 4. dev server 资源 404 的根因
 
-1. `npm run doctor` 不再出现启动阻塞项
-2. `npm run verify:local` 全部通过
-3. 至少完成 `docs/local-qa-checklist.md` 中的最低通过标准
-4. 联调过程中发现的新问题被记录到下一轮任务里，而不是直接开始扩需求
+之前多次出现：
+
+- `/_next/static/... 404`
+- 页面按钮失效
+- `layout.js` / `page.js` / `main-app.js` 404
+
+根因是：
+
+- `next dev` 在编译时出现模块找不到或缓存脏状态
+- 首页 HTML 与 `_next/static` 虚拟资源不匹配
+
+已知有效修复方式：
+
+1. 停掉当前 `localhost:3000` 的 dev 进程
+2. 删除 `.next`
+3. 重新执行 `npm run dev`
+4. 浏览器强刷：`Ctrl+Shift+R`
+
+## 当前联调建议路径
+
+如果下一个会话要继续联调，请按这个顺序走：
+
+1. `npm install`
+2. `npm run doctor`
+3. `npm run verify:local`
+4. `npx prisma generate`
+5. `npx prisma db push`
+6. `npm run dev`
+7. 打开 `http://localhost:3000`
+8. 如果页面资源异常，先重启 dev server 并清 `.next`
+9. 登录账号
+10. 在设置页配置至少一个 provider 的 API Key
+11. 等系统自动创建首条会话
+12. 发送一条真实消息验证对话链路
+
+## 下次新会话如何用 superpowers 开展工作
+
+下一次开新会话时，建议严格按以下 superpowers 流程：
+
+### A. 进入会话后的第一句话
+
+明确要求继续使用 superpowers，并让助手先读这些文件：
+
+- `docs/hand-off.md`
+- `README.md`
+- `docs/superpowers/specs/2026-04-12-chatflow-handoff-and-local-verification-design.md`
+- `docs/superpowers/specs/2026-04-12-chatflow-domestic-provider-expansion-design.md`
+- `docs/superpowers/specs/2026-04-12-chatflow-auth-aware-ux-and-auto-session-design.md`
+
+### B. 如果是继续开发功能
+
+要求助手按：
+
+1. `using-superpowers`
+2. `brainstorming`
+3. `writing-plans`
+4. `executing-plans`
+
+的顺序推进。
+
+不要跳过设计和计划，哪怕需求看起来很小。
+
+### C. 如果是排查 bug
+
+要求助手先用：
+
+- `systematic-debugging`
+
+然后再进入修复。
+
+不要允许直接“猜一个修复先试试”。
+
+### D. 如果要改代码
+
+要求助手：
+
+- 先走 TDD
+- 使用 `apply_patch` 改文件
+- 完成后必须跑 `npm run verify:local`
+
+对应 skills：
+
+- `test-driven-development`
+- `verification-before-completion`
+
+### E. 建议的新会话提示词
+
+可以直接复制下面这段作为下次开工提示：
+
+```text
+继续接手 ChatFlow，本次必须使用 superpowers 流程管理。
+先阅读 docs/hand-off.md、README.md 和 docs/superpowers/specs 下 2026-04-12 的 3 份 design 文档，
+再汇总当前状态与未完成事项。
+如果是新功能，先走 brainstorming -> writing-plans -> executing-plans；
+如果是 bug，先走 systematic-debugging；
+所有代码修改必须用 apply_patch，完成前必须跑 npm run verify:local。
+```
+
+## 下一轮优先事项建议
+
+如果继续开发，我建议优先顺序如下：
+
+1. 验证“保存 API Key -> 刷新后仍显示已配置 -> 成功发出第一条真实对话”
+2. 确认 `豆包` 是否需要补“endpoint-id 模式”
+3. 视情况补“登录后首页自动聚焦到可用输入状态”的细节优化
+4. 再考虑视觉模型、多模态、自定义模型 ID / Base URL
+
+## 不要遗漏的注意事项
+
+- 用户要求全程中文
+- 用户要求尽量使用 superpowers 管理全过程
+- 当前工作区可能是脏的，不要擅自回退已有改动
+- 不要使用 `git reset --hard`、`git checkout --` 这类破坏性命令
+- 如果 dev server 出现奇怪的 `_next/static` 404，优先怀疑 `.next` 和 dev 进程状态

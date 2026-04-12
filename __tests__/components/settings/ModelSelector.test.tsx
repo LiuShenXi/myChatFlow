@@ -55,4 +55,16 @@ describe("ModelSelector", () => {
 
     expect(useSessionStore.getState().currentModel).toBe("gpt-4o")
   })
+
+  it("should render and select domestic models", () => {
+    render(<ModelSelector />)
+
+    expect(screen.getByRole("button", { name: "Qwen Plus" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "GLM-5" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Kimi K2" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Qwen Plus" }))
+
+    expect(useSessionStore.getState().currentModel).toBe("qwen-plus")
+  })
 })

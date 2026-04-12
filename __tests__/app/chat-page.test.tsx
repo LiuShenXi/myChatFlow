@@ -4,9 +4,14 @@ import { useChatStore } from "@/store/chat-store"
 import { useSessionStore } from "@/store/session-store"
 
 const useChatMock = jest.fn()
+const useSessionMock = jest.fn()
 
 jest.mock("ai/react", () => ({
   useChat: (...args: unknown[]) => useChatMock(...args)
+}))
+
+jest.mock("next-auth/react", () => ({
+  useSession: () => useSessionMock()
 }))
 
 jest.mock("@/components/chat/MessageList", () => ({
@@ -18,8 +23,8 @@ jest.mock("@/components/chat/MessageList", () => ({
     isLoading: boolean
   }) => (
     <div>
-      <div>消息数:{messages.length}</div>
-      <div>加载中:{String(isLoading)}</div>
+      <div>消息数 {messages.length}</div>
+      <div>加载中 {String(isLoading)}</div>
     </div>
   )
 }))
@@ -33,8 +38,8 @@ jest.mock("@/components/chat/InputArea", () => ({
     disabled: boolean
   }) => (
     <div>
-      <div>输入框:{input}</div>
-      <div>禁用状态:{String(disabled)}</div>
+      <div>输入框 {input}</div>
+      <div>禁用状态 {String(disabled)}</div>
     </div>
   )
 }))
@@ -48,6 +53,14 @@ describe("ChatPage", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     global.fetch = fetchMock as unknown as typeof fetch
+    useSessionMock.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          id: "user-1"
+        }
+      }
+    })
 
     useSessionStore.setState({
       sessions: [],
@@ -93,7 +106,7 @@ describe("ChatPage", () => {
       }
     })
     expect(setMessagesMock).toHaveBeenCalledWith([])
-    expect(screen.getByText("禁用状态:true")).toBeInTheDocument()
+    expect(screen.getByText("禁用状态 true")).toBeInTheDocument()
   })
 
   it("should load message history for the current session", async () => {
@@ -145,7 +158,7 @@ describe("ChatPage", () => {
         content: "你好，请问想聊什么？"
       }
     ])
-    expect(screen.getByText("禁用状态:false")).toBeInTheDocument()
+    expect(screen.getByText("禁用状态 false")).toBeInTheDocument()
   })
 
   it("should sync loading state to the chat store", () => {
@@ -173,6 +186,18 @@ describe("ChatPage", () => {
     render(<ChatPage />)
 
     expect(useChatStore.getState().isStreaming).toBe(true)
-    expect(screen.getByText("加载中:true")).toBeInTheDocument()
+    expect(screen.getByText("加载中 true")).toBeInTheDocument()
+  })
+
+  it("should show an auth prompt and keep input disabled when unauthenticated", () => {
+    useSessionMock.mockReturnValue({
+      status: "unauthenticated",
+      data: null
+    })
+
+    render(<ChatPage />)
+
+    expect(screen.getByText("登录后即可开始对话")).toBeInTheDocument()
+    expect(screen.getByText("禁用状态 true")).toBeInTheDocument()
   })
 })

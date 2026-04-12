@@ -1,6 +1,12 @@
 import { render, screen } from "@testing-library/react"
 import { SettingsDialog } from "@/components/settings/SettingsDialog"
 
+const useSessionMock = jest.fn()
+
+jest.mock("next-auth/react", () => ({
+  useSession: () => useSessionMock()
+}))
+
 jest.mock("@/components/ui/dialog", () => ({
   Dialog: ({
     open,
@@ -27,6 +33,18 @@ jest.mock("@/components/settings/ApiKeyManager", () => ({
 }))
 
 describe("SettingsDialog", () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    useSessionMock.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          id: "user-1"
+        }
+      }
+    })
+  })
+
   it("should not render content when closed", () => {
     render(<SettingsDialog open={false} onOpenChange={jest.fn()} />)
 
@@ -38,5 +56,20 @@ describe("SettingsDialog", () => {
 
     expect(screen.getByText("设置")).toBeInTheDocument()
     expect(screen.getByText("API Key 管理器")).toBeInTheDocument()
+  })
+
+  it("should show an auth prompt when unauthenticated", () => {
+    useSessionMock.mockReturnValue({
+      status: "unauthenticated",
+      data: null
+    })
+
+    render(<SettingsDialog open={true} onOpenChange={jest.fn()} />)
+
+    expect(screen.getByText("登录后才能配置 API Key")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "登录" })).toHaveAttribute(
+      "href",
+      "/login"
+    )
   })
 })
