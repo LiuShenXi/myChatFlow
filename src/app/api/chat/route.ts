@@ -1,4 +1,4 @@
-import { streamText } from "ai"
+﻿import { streamText, type Attachment, type Message } from "ai"
 import { decrypt } from "@/lib/auth/encryption"
 import { auth } from "@/lib/auth/next-auth"
 import {
@@ -6,13 +6,19 @@ import {
   getProvider
 } from "@/lib/ai/providers"
 import { createErrorResponse } from "@/lib/ai/stream-handler"
+import {
+  extractImageUrls,
+  sanitizeMessagesForModelInput
+} from "@/lib/chat/message-parts"
 import { prisma } from "@/lib/db/prisma"
-import { getModelConfig, parseCustomModelId } from "@/types/model"
+import {
+  getModelConfig,
+  modelSupportsImageInput,
+  parseCustomModelId
+} from "@/types/model"
 
-type IncomingMessage = {
-  role: "user" | "assistant" | "system"
-  content: string
-  images?: string[]
+type IncomingMessage = Message & {
+  experimental_attachments?: Attachment[]
 }
 
 export async function POST(req: Request) {
@@ -60,7 +66,7 @@ export async function POST(req: Request) {
     if (customModelConfig && !customEncryptedApiKey?.trim()) {
       return new Response(
         JSON.stringify({
-          error: "该自定义模型缺少 API Key，请在设置中重新保存"
+          error: "\u8be5\u81ea\u5b9a\u4e49\u6a21\u578b\u7f3a\u5c11 API Key\uff0c\u8bf7\u5728\u8bbe\u7f6e\u4e2d\u91cd\u65b0\u4fdd\u5b58"
         }),
         {
           status: 400,
@@ -85,7 +91,7 @@ export async function POST(req: Request) {
     if (!customModelConfig && !apiKeyRecord) {
       return new Response(
         JSON.stringify({
-          error: `请先在设置中配置 ${staticModelConfig!.provider} 的 API Key`
+          error: `\u8bf7\u5148\u5728\u8bbe\u7f6e\u4e2d\u914d\u7f6e ${staticModelConfig!.provider} \u7684 API Key`
         }),
         {
           status: 400,
@@ -102,7 +108,34 @@ export async function POST(req: Request) {
     ) {
       return new Response(
         JSON.stringify({
-          error: "请先在设置中配置豆包 endpoint-id"
+          error: "\u8bf7\u5148\u5728\u8bbe\u7f6e\u4e2d\u914d\u7f6e\u8c46\u5305 endpoint-id"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      )
+    }
+
+    const lastUserMessage = [...messages].reverse().find((message) => {
+      return message.role === "user"
+    })
+    const lastUserImages = extractImageUrls(
+      lastUserMessage?.experimental_attachments
+    )
+    const hasAnyUserImages = messages.some((message) => {
+      return (
+        message.role === "user" &&
+        extractImageUrls(message.experimental_attachments).length > 0
+      )
+    })
+
+    if (hasAnyUserImages && !modelSupportsImageInput(modelId)) {
+      return new Response(
+        JSON.stringify({
+          error: "\u5f53\u524d\u6a21\u578b\u4e0d\u652f\u6301\u56fe\u7247\u8f93\u5165\uff0c\u8bf7\u5207\u6362\u5230\u652f\u6301\u591a\u6a21\u6001\u7684\u6a21\u578b\u540e\u518d\u53d1\u9001"
         }),
         {
           status: 400,
@@ -131,20 +164,19 @@ export async function POST(req: Request) {
           resolvedModelId!,
           apiKey
         )
+    const modelMessages = sanitizeMessagesForModelInput(messages)
 
     const result = await streamText({
       model: provider,
-      messages: messages as never,
+      messages: modelMessages as never,
       onFinish: async ({ text, usage }) => {
-        const lastUserMessage = messages[messages.length - 1]
-
         if (lastUserMessage?.role === "user") {
           await prisma.message.create({
             data: {
               sessionId,
               role: "user",
               content: lastUserMessage.content,
-              images: lastUserMessage.images ?? []
+              images: lastUserImages
             }
           })
         }

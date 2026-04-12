@@ -16,8 +16,9 @@ import { useImageUpload } from "@/hooks/useImageUpload"
 interface InputAreaProps {
   input: string
   setInput: (input: string) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => boolean
   disabled: boolean
+  errorMessage?: string | null
 }
 
 export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
@@ -26,7 +27,8 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
       input,
       setInput,
       onSubmit,
-      disabled
+      disabled,
+      errorMessage
     },
     forwardedRef
   ) {
@@ -93,15 +95,21 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
     }
 
     const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-      onSubmit(event)
+      const shouldClearImages = onSubmit(event)
 
-      if (!event.defaultPrevented) {
+      if (shouldClearImages) {
         clearImages()
       }
     }
 
     return (
       <div className="border-t bg-background px-4 py-4">
+        {errorMessage ? (
+          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errorMessage}
+          </div>
+        ) : null}
+
         {images.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-3">
             {images.map((image, index) => (

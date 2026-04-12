@@ -1,4 +1,4 @@
-/** @jest-environment node */
+﻿/** @jest-environment node */
 const authMock = jest.fn()
 const findUniqueMock = jest.fn()
 const customModelFindUniqueMock = jest.fn()
@@ -8,6 +8,12 @@ const decryptMock = jest.fn()
 const getProviderMock = jest.fn()
 const createCustomProviderMock = jest.fn()
 const streamTextMock = jest.fn()
+
+const imageAttachment = {
+  name: "image-1",
+  contentType: "image/png",
+  url: "data:image/png;base64,abc"
+}
 
 jest.mock("ai", () => ({
   streamText: (...args: unknown[]) => streamTextMock(...args)
@@ -115,7 +121,262 @@ describe("/api/chat route", () => {
     expect(response.status).toBe(400)
   })
 
-  it("should stream a response and persist messages on finish", async () => {
+  it("should reject image requests when the selected model does not support vision", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "qwen-plus",
+          messages: [
+            {
+              role: "user",
+              content: "你好",
+              experimental_attachments: [imageAttachment]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    })
+    expect(streamTextMock).not.toHaveBeenCalled()
+  })
+
+  it("should reject image requests when any prior user message contains images", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "qwen-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "qwen-plus",
+          messages: [
+            {
+              role: "user",
+              content: "第一条消息",
+              experimental_attachments: [imageAttachment]
+            },
+            {
+              role: "assistant",
+              content: "已收到"
+            },
+            {
+              role: "user",
+              content: "最后一条消息"
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    })
+    expect(streamTextMock).not.toHaveBeenCalled()
+  })
+
+  it("should keep the api key error ahead of image validation for text only providers", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue(null)
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "qwen-plus",
+          messages: [
+            {
+              role: "user",
+              content: "你好",
+              experimental_attachments: [imageAttachment]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "请先在设置中配置 qwen 的 API Key"
+    })
+    expect(streamTextMock).not.toHaveBeenCalled()
+  })
+
+  it("should pass experimental attachments through to streamText for supported vision models", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "openai-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "user",
+              content: "你好",
+              experimental_attachments: [imageAttachment]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(streamTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            role: "user",
+            content: "你好",
+            experimental_attachments: [imageAttachment]
+          })
+        ]
+      })
+    )
+  })
+
+  it("should strip unsupported assistant ui parts before calling streamText", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "openai-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "user",
+              content: "第一条消息"
+            },
+            {
+              role: "assistant",
+              content: "中间回复",
+              parts: [
+                { type: "step-start" },
+                { type: "text", text: "中间回复" }
+              ]
+            },
+            {
+              role: "user",
+              content: "看下这张图",
+              experimental_attachments: [imageAttachment]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(streamTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            role: "user",
+            content: "第一条消息"
+          }),
+          {
+            role: "assistant",
+            content: "中间回复",
+            parts: [{ type: "text", text: "中间回复" }]
+          },
+          expect.objectContaining({
+            role: "user",
+            content: "看下这张图",
+            experimental_attachments: [imageAttachment]
+          })
+        ]
+      })
+    )
+  })
+
+  it("should allow image requests for custom models", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "My Gateway",
+      baseUrl: "https://example.com/v1",
+      modelId: "gpt-4o-mini",
+      encryptedApiKey: "encrypted-custom-key"
+    })
+    decryptMock.mockReturnValue("decrypted-custom-key")
+    createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: [
+            {
+              role: "user",
+              content: "你好",
+              experimental_attachments: [imageAttachment]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(customModelFindUniqueMock).toHaveBeenCalledWith({
+      where: { id: "cfg-1" }
+    })
+  })
+
+  it("should stream a response and persist extracted images on finish", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
     findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
     decryptMock.mockReturnValue("decrypted-value")
@@ -146,7 +407,7 @@ describe("/api/chat route", () => {
             {
               role: "user",
               content: "你好",
-              images: []
+              experimental_attachments: [imageAttachment]
             }
           ]
         })
@@ -160,47 +421,19 @@ describe("/api/chat route", () => {
       "gpt-4",
       "decrypted-value"
     )
+    expect(messageCreateMock).toHaveBeenCalledWith({
+      data: {
+        sessionId: "session-1",
+        role: "user",
+        content: "你好",
+        images: ["data:image/png;base64,abc"]
+      }
+    })
     expect(messageCreateMock).toHaveBeenCalledTimes(2)
     expect(sessionUpdateMock).toHaveBeenCalledWith({
       where: { id: "session-1" },
       data: { updatedAt: expect.any(Date) }
     })
-  })
-
-  it("should use the qwen provider when the selected model is qwen-plus", async () => {
-    authMock.mockResolvedValue({ user: { id: "user-1" } })
-    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
-    decryptMock.mockReturnValue("decrypted-value")
-    getProviderMock.mockReturnValue({ provider: "qwen-model" })
-    streamTextMock.mockImplementation(async () => ({
-      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
-    }))
-
-    const response = await POST(
-      new Request("http://localhost/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          sessionId: "session-1",
-          model: "qwen-plus",
-          messages: [
-            {
-              role: "user",
-              content: "你好"
-            }
-          ]
-        })
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(getProviderMock).toHaveBeenCalledWith(
-      "qwen",
-      "qwen-plus",
-      "decrypted-value"
-    )
   })
 
   it("should reject doubao chat requests when endpoint id is missing", async () => {

@@ -2,6 +2,7 @@
 
 import type { Message } from "ai"
 import { Bot, User } from "lucide-react"
+import { extractImageUrls } from "@/lib/chat/message-parts"
 import { MarkdownRenderer } from "./MarkdownRenderer"
 
 interface MessageItemProps {
@@ -12,6 +13,7 @@ export function MessageItem({ message }: MessageItemProps) {
   const isUser = message.role === "user"
   const content =
     typeof message.content === "string" ? message.content : String(message.content)
+  const imageUrls = isUser ? extractImageUrls(message.experimental_attachments) : []
 
   return (
     <div className={`flex gap-4 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -23,11 +25,7 @@ export function MessageItem({ message }: MessageItemProps) {
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
       </div>
 
-      <div
-        className={`flex-1 space-y-2 overflow-hidden ${
-          isUser ? "text-right" : ""
-        }`}
-      >
+      <div className={`flex-1 space-y-2 overflow-hidden ${isUser ? "text-right" : ""}`}>
         <div
           className={`inline-block max-w-full rounded-lg px-4 py-2 text-left ${
             isUser
@@ -41,6 +39,24 @@ export function MessageItem({ message }: MessageItemProps) {
             <MarkdownRenderer content={content} />
           )}
         </div>
+
+        {isUser && imageUrls.length > 0 ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {imageUrls.map((imageUrl, index) => (
+              <div
+                key={`${imageUrl}-${index}`}
+                className="overflow-hidden rounded-lg border border-border bg-muted"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt={`消息图片 ${index + 1}`}
+                  className="h-20 w-20 object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   )

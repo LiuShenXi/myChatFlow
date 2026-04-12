@@ -20,6 +20,16 @@ type CustomModelConfigDTO = {
   updatedAt?: string
 }
 
+function formatModelLabel(modelId: string, modelName: string) {
+  const model = AVAILABLE_MODELS.find((item) => item.id === modelId)
+
+  if (model?.supportsVision) {
+    return `${modelName} 视觉`
+  }
+
+  return modelName
+}
+
 export function ModelSelector() {
   const currentModel = useSessionStore((state) => state.currentModel)
   const setModel = useSessionStore((state) => state.setModel)
@@ -47,11 +57,13 @@ export function ModelSelector() {
   const currentCustomModel = customModels.find(
     (model) => currentModel === `${CUSTOM_MODEL_PREFIX}${model.id}`
   )
+  const currentModelConfig = AVAILABLE_MODELS.find(
+    (model) => model.id === currentModel
+  )
 
   const currentModelName =
     currentCustomModel?.name ??
-    AVAILABLE_MODELS.find((model) => model.id === currentModel)?.name ??
-    currentModel
+    formatModelLabel(currentModel, currentModelConfig?.name ?? currentModel)
 
   return (
     <DropdownMenu>
@@ -64,7 +76,7 @@ export function ModelSelector() {
       <DropdownMenuContent align="end">
         {AVAILABLE_MODELS.map((model) => (
           <DropdownMenuItem key={model.id} onClick={() => setModel(model.id)}>
-            {model.name}
+            {formatModelLabel(model.id, model.name)}
           </DropdownMenuItem>
         ))}
 

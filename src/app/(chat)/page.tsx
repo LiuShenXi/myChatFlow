@@ -1,31 +1,32 @@
-"use client"
+﻿"use client"
 
-import { useEffect, useRef } from "react"
+import type { FormEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useChat } from "ai/react"
 import { useSession } from "next-auth/react"
 import { AuthPrompt } from "@/components/auth/AuthPrompt"
 import { InputArea } from "@/components/chat/InputArea"
 import { MessageList } from "@/components/chat/MessageList"
+import {
+  buildImageAttachments,
+  mapStoredMessageToUiMessage
+} from "@/lib/chat/message-parts"
 import { useChatStore } from "@/store/chat-store"
 import { useSessionStore } from "@/store/session-store"
+import { modelSupportsImageInput } from "@/types/model"
 
 export default function ChatPage() {
   const { status } = useSession()
   const currentSessionId = useSessionStore((state) => state.currentSessionId)
   const currentModel = useSessionStore((state) => state.currentModel)
+  const images = useChatStore((state) => state.images)
   const setIsStreaming = useChatStore((state) => state.setIsStreaming)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const previousReadyRef = useRef(false)
   const previousSessionIdRef = useRef<string | null>(null)
 
-  const {
-    messages,
-    input,
-    setInput,
-    handleSubmit,
-    isLoading,
-    setMessages
-  } = useChat({
+  const { messages, input, setInput, handleSubmit, isLoading, setMessages } = useChat({
     api: "/api/chat",
     body: {
       sessionId: currentSessionId,
@@ -48,15 +49,7 @@ export default function ChatPage() {
         }
 
         const data = await response.json()
-        setMessages(
-          data.messages.map(
-            (message: { id: string; role: string; content: string }) => ({
-              id: message.id,
-              role: message.role,
-              content: message.content
-            })
-          )
-        )
+        setMessages(data.messages.map(mapStoredMessageToUiMessage))
       } catch {
         // Ignore message loading failures and keep the current UI state.
       }
@@ -69,8 +62,27 @@ export default function ChatPage() {
     setIsStreaming(isLoading)
   }, [isLoading, setIsStreaming])
 
-  const isInputDisabled =
-    isLoading || status !== "authenticated" || !currentSessionId
+  const isInputDisabled = isLoading || status !== "authenticated" || !currentSessionId
+
+  const handleChatSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (images.length > 0 && !modelSupportsImageInput(currentModel)) {
+      event.preventDefault()
+      setSubmitError("当前模型不支持图片输入，请切换到支持多模态的模型后再发送")
+      return false
+    }
+
+    setSubmitError(null)
+    handleSubmit(event, {
+      experimental_attachments: buildImageAttachments(images)
+    })
+    return true
+  }
+
+  useEffect(() => {
+    if (submitError && (images.length === 0 || modelSupportsImageInput(currentModel))) {
+      setSubmitError(null)
+    }
+  }, [currentModel, images.length, submitError])
 
   useEffect(() => {
     const isReady = status === "authenticated" && Boolean(currentSessionId)
@@ -108,8 +120,9 @@ export default function ChatPage() {
         ref={inputRef}
         input={input}
         setInput={setInput}
-        onSubmit={handleSubmit}
+        onSubmit={handleChatSubmit}
         disabled={isInputDisabled}
+        errorMessage={submitError}
       />
     </>
   )

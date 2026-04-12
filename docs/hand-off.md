@@ -94,19 +94,48 @@
 - `docs/superpowers/specs/2026-04-12-chatflow-auth-aware-ux-and-auto-session-design.md`
 - `docs/superpowers/plans/2026-04-12-chatflow-auth-aware-ux-and-auto-session.md`
 
+### 5. 图片多模态闭环与流式兼容修复
+
+已完成以下多模态收口：
+
+- 聊天页发送时，图片会转换为 AI SDK `experimental_attachments`
+- 后端会从用户消息中提取图片并持久化到 `Message.images[]`
+- 会话历史加载时，会把数据库里的图片重新映射回 UI message
+- 用户消息卡片新增图片缩略图展示
+- 模型选择器明确区分支持视觉与纯文本模型
+- 自定义模型默认允许图片输入，避免误拦截
+
+同时修复了一处真实报错：
+
+- 带图请求若携带历史 assistant `parts[].type === "step-start"`，`ai@4.3.16` 在转换模型输入时会报错
+- 现在已在 `src/lib/chat/message-parts.ts` 中增加 `sanitizeMessagesForModelInput`
+- `/api/chat` 在调用 `streamText` 前会先清洗该类 part
+- 图片附件本身保持不变，因此不会破坏多模态链路
+
+相关实现与测试：
+
+- `src/lib/chat/message-parts.ts`
+- `src/app/api/chat/route.ts`
+- `src/app/(chat)/page.tsx`
+- `src/components/chat/InputArea.tsx`
+- `src/components/chat/MessageItem.tsx`
+- `__tests__/lib/chat/message-parts.test.ts`
+- `__tests__/app/api/chat/route.test.ts`
+- `__tests__/app/chat-page.test.tsx`
+- `__tests__/components/chat/InputArea.test.tsx`
+- `__tests__/components/chat/MessageItem.test.tsx`
+- `docs/superpowers/plans/2026-04-13-chatflow-multimodal-closeout.md`
+
 ## 当前验证状态
 
 最新一次已完成：
 
-- `npm run verify:local`
+- `npm test -- --runInBand`
 
 结果：
 
-- TypeScript：通过
 - Jest：通过
-- ESLint：通过
-- Next build：通过
-- 共 `23` 个 test suites、`94` 个 tests 全部通过
+- 共 `29` 个 test suites、`146` 个 tests 全部通过
 
 ## 当前工作区状态
 
@@ -115,6 +144,7 @@
 - OAuth 与登录页修复
 - 国产 provider 扩展
 - 未登录提示与自动会话初始化
+- 图片多模态闭环与 `step-start` 兼容修复
 - 对应测试
 - README 与 superpowers 设计/计划文档
 
@@ -172,6 +202,14 @@
 3. 重新执行 `npm run dev`
 4. 浏览器强刷：`Ctrl+Shift+R`
 
+### 5. 多模态链路的当前事实
+
+- 数据库存储仍沿用 `Message.content + Message.images[]`
+- 前后端传输使用 AI SDK `experimental_attachments`
+- 历史消息回显不是直接读 `attachments`，而是通过 `mapStoredMessageToUiMessage` 重新构造
+- 当前后端都做了“模型是否支持图片输入”的防线
+- 自定义模型当前按“默认支持图片”处理，如果后续要更严谨，可再引入显式能力开关
+
 ## 当前联调建议路径
 
 如果下一个会话要继续联调，请按这个顺序走：
@@ -188,6 +226,7 @@
 10. 在设置页配置至少一个 provider 的 API Key
 11. 等系统自动创建首条会话
 12. 发送一条真实消息验证对话链路
+13. 如果要验证多模态，补做一轮“支持视觉模型发送图片 / 不支持视觉模型被阻止 / 刷新后图片仍回显”
 
 ## 下次新会话如何用 superpowers 开展工作
 
@@ -202,6 +241,8 @@
 - `docs/superpowers/specs/2026-04-12-chatflow-handoff-and-local-verification-design.md`
 - `docs/superpowers/specs/2026-04-12-chatflow-domestic-provider-expansion-design.md`
 - `docs/superpowers/specs/2026-04-12-chatflow-auth-aware-ux-and-auto-session-design.md`
+- `docs/superpowers/specs/2026-04-12-chatflow-multimodal-design.md`
+- `docs/superpowers/plans/2026-04-13-chatflow-multimodal-closeout.md`
 
 ### B. 如果是继续开发功能
 
@@ -257,7 +298,8 @@
 如果继续开发，我建议优先顺序如下：
 
 1. 验证“保存 API Key -> 刷新后仍显示已配置 -> 成功发出第一条真实对话”
-2. 确认 `豆包` 是否需要补“endpoint-id 模式”
+2. 做一轮浏览器图片多模态冒烟回归，确认历史带图会话不再触发 `"An error occurred."`
+3. 确认 `豆包` 是否需要补“endpoint-id 模式”
 3. 视情况补“登录后首页自动聚焦到可用输入状态”的细节优化
 4. 再考虑视觉模型、多模态、自定义模型 ID / Base URL
 

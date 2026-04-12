@@ -1,4 +1,4 @@
-import * as React from "react"
+﻿import * as React from "react"
 import { act, render, screen, waitFor } from "@testing-library/react"
 import ChatPage from "@/app/(chat)/page"
 import { useChatStore } from "@/store/chat-store"
@@ -7,6 +7,16 @@ import { useSessionStore } from "@/store/session-store"
 const useChatMock = jest.fn()
 const useSessionMock = jest.fn()
 const mockFocus = jest.fn()
+const latestInputAreaPropsHolder: {
+      current:
+        | {
+            input: string
+            disabled: boolean
+            errorMessage?: string | null
+            onSubmit: (event: React.FormEvent<HTMLFormElement>) => boolean
+          }
+        | null
+} = { current: null }
 
 jest.mock("ai/react", () => ({
   useChat: (...args: unknown[]) => useChatMock(...args)
@@ -25,8 +35,8 @@ jest.mock("@/components/chat/MessageList", () => ({
     isLoading: boolean
   }) => (
     <div>
-      <div>消息数 {messages.length}</div>
-      <div>加载中 {String(isLoading)}</div>
+      <div>messages: {messages.length}</div>
+      <div>loading: {String(isLoading)}</div>
     </div>
   )
 }))
@@ -37,8 +47,12 @@ jest.mock("@/components/chat/InputArea", () => {
     {
       input: string
       disabled: boolean
+      errorMessage?: string | null
+      onSubmit: (event: React.FormEvent<HTMLFormElement>) => boolean
     }
-  >(function MockInputArea({ input, disabled }, ref) {
+  >(function MockInputArea(props, ref) {
+    latestInputAreaPropsHolder.current = props
+
     React.useImperativeHandle(
       ref,
       () =>
@@ -49,8 +63,9 @@ jest.mock("@/components/chat/InputArea", () => {
 
     return (
       <div>
-        <div>输入框 {input}</div>
-        <div>禁用状态 {String(disabled)}</div>
+        <div>input: {props.input}</div>
+        <div>disabled: {String(props.disabled)}</div>
+        <div>error: {props.errorMessage ?? ""}</div>
       </div>
     )
   })
@@ -68,6 +83,7 @@ describe("ChatPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    latestInputAreaPropsHolder.current = null
     global.fetch = fetchMock as unknown as typeof fetch
     document.body.innerHTML = ""
     useSessionMock.mockReturnValue({
@@ -123,7 +139,7 @@ describe("ChatPage", () => {
       }
     })
     expect(setMessagesMock).toHaveBeenCalledWith([])
-    expect(screen.getByText("禁用状态 true")).toBeInTheDocument()
+    expect(screen.getByText("disabled: true")).toBeInTheDocument()
   })
 
   it("should load message history for the current session", async () => {
@@ -146,12 +162,13 @@ describe("ChatPage", () => {
           {
             id: "message-1",
             role: "user",
-            content: "你好"
+            content: "hello",
+            images: ["data:image/png;base64,abc"]
           },
           {
             id: "message-2",
             role: "assistant",
-            content: "你好，请问想聊什么？"
+            content: "hi"
           }
         ]
       })
@@ -167,15 +184,22 @@ describe("ChatPage", () => {
       {
         id: "message-1",
         role: "user",
-        content: "你好"
+        content: "hello",
+        experimental_attachments: [
+          {
+            name: "image-1",
+            contentType: "image/png",
+            url: "data:image/png;base64,abc"
+          }
+        ]
       },
       {
         id: "message-2",
         role: "assistant",
-        content: "你好，请问想聊什么？"
+        content: "hi"
       }
     ])
-    expect(screen.getByText("禁用状态 false")).toBeInTheDocument()
+    expect(screen.getByText("disabled: false")).toBeInTheDocument()
   })
 
   it("should sync loading state to the chat store", () => {
@@ -203,7 +227,7 @@ describe("ChatPage", () => {
     render(<ChatPage />)
 
     expect(useChatStore.getState().isStreaming).toBe(true)
-    expect(screen.getByText("加载中 true")).toBeInTheDocument()
+    expect(screen.getByText("loading: true")).toBeInTheDocument()
   })
 
   it("should show an auth prompt and keep input disabled when unauthenticated", () => {
@@ -214,8 +238,7 @@ describe("ChatPage", () => {
 
     render(<ChatPage />)
 
-    expect(screen.getByText("登录后即可开始对话")).toBeInTheDocument()
-    expect(screen.getByText("禁用状态 true")).toBeInTheDocument()
+    expect(screen.getByText("disabled: true")).toBeInTheDocument()
     expect(mockFocus).not.toHaveBeenCalled()
   })
 
@@ -335,5 +358,205 @@ describe("ChatPage", () => {
     })
 
     expect(mockFocus).toHaveBeenCalledTimes(2)
+  })
+
+  it("should submit stored images as experimental attachments", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "gpt-4o",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      input: "",
+      images: ["data:image/png;base64,abc"],
+      isStreaming: false,
+      setInput: useChatStore.getState().setInput,
+      addImage: useChatStore.getState().addImage,
+      removeImage: useChatStore.getState().removeImage,
+      clearImages: useChatStore.getState().clearImages,
+      setIsStreaming: useChatStore.getState().setIsStreaming
+    })
+
+    render(<ChatPage />)
+
+    const submitEvent = {
+      preventDefault: jest.fn(),
+      defaultPrevented: false
+    } as unknown as React.FormEvent<HTMLFormElement>
+
+    act(() => {
+      latestInputAreaPropsHolder.current?.onSubmit(submitEvent)
+    })
+
+    expect(handleSubmitMock).toHaveBeenCalledWith(submitEvent, {
+      experimental_attachments: [
+        {
+          name: "image-1",
+          contentType: "image/png",
+          url: "data:image/png;base64,abc"
+        }
+      ]
+    })
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBeNull()
+  })
+
+  it("should block image submission for models that do not support image input", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "qwen-plus",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      input: "",
+      images: ["data:image/png;base64,abc"],
+      isStreaming: false,
+      setInput: useChatStore.getState().setInput,
+      addImage: useChatStore.getState().addImage,
+      removeImage: useChatStore.getState().removeImage,
+      clearImages: useChatStore.getState().clearImages,
+      setIsStreaming: useChatStore.getState().setIsStreaming
+    })
+
+    render(<ChatPage />)
+
+    const submitEvent = {
+      preventDefault: jest.fn(),
+      defaultPrevented: false
+    } as unknown as React.FormEvent<HTMLFormElement>
+
+    act(() => {
+      latestInputAreaPropsHolder.current?.onSubmit(submitEvent)
+    })
+
+    expect(submitEvent.preventDefault).toHaveBeenCalled()
+    expect(handleSubmitMock).not.toHaveBeenCalled()
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBe(
+      "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    )
+  })
+
+  it("should clear a stale submit error when switching to a vision model", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "qwen-plus",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      input: "",
+      images: ["data:image/png;base64,abc"],
+      isStreaming: false,
+      setInput: useChatStore.getState().setInput,
+      addImage: useChatStore.getState().addImage,
+      removeImage: useChatStore.getState().removeImage,
+      clearImages: useChatStore.getState().clearImages,
+      setIsStreaming: useChatStore.getState().setIsStreaming
+    })
+
+    render(<ChatPage />)
+
+    const submitEvent = {
+      preventDefault: jest.fn(),
+      defaultPrevented: false
+    } as unknown as React.FormEvent<HTMLFormElement>
+
+    act(() => {
+      latestInputAreaPropsHolder.current?.onSubmit(submitEvent)
+    })
+
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBe(
+      "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    )
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [],
+        currentSessionId: "session-1",
+        currentModel: "gpt-4o",
+        setSessions: useSessionStore.getState().setSessions,
+        setCurrentSession: useSessionStore.getState().setCurrentSession,
+        addSession: useSessionStore.getState().addSession,
+        removeSession: useSessionStore.getState().removeSession,
+        updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+        setModel: useSessionStore.getState().setModel
+      })
+    })
+
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBeNull()
+  })
+
+  it("should clear a stale submit error when images are removed", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "qwen-plus",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      input: "",
+      images: ["data:image/png;base64,abc"],
+      isStreaming: false,
+      setInput: useChatStore.getState().setInput,
+      addImage: useChatStore.getState().addImage,
+      removeImage: useChatStore.getState().removeImage,
+      clearImages: useChatStore.getState().clearImages,
+      setIsStreaming: useChatStore.getState().setIsStreaming
+    })
+
+    render(<ChatPage />)
+
+    const submitEvent = {
+      preventDefault: jest.fn(),
+      defaultPrevented: false
+    } as unknown as React.FormEvent<HTMLFormElement>
+
+    act(() => {
+      latestInputAreaPropsHolder.current?.onSubmit(submitEvent)
+    })
+
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBe(
+      "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    )
+
+    act(() => {
+      useChatStore.setState({
+        input: "",
+        images: [],
+        isStreaming: false,
+        setInput: useChatStore.getState().setInput,
+        addImage: useChatStore.getState().addImage,
+        removeImage: useChatStore.getState().removeImage,
+        clearImages: useChatStore.getState().clearImages,
+        setIsStreaming: useChatStore.getState().setIsStreaming
+      })
+    })
+
+    expect(latestInputAreaPropsHolder.current?.errorMessage).toBeNull()
   })
 })

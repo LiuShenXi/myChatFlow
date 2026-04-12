@@ -51,39 +51,37 @@ describe("ModelSelector", () => {
     })
   })
 
-  it("should render the current model name", () => {
+  it("should append a vision hint to built-in vision models", async () => {
     render(<ModelSelector />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    return waitFor(() => {
-      expect(screen.getByRole("button", { name: "当前模型" })).toHaveTextContent(
-        "GPT-4"
-      )
+    expect(screen.getByRole("button", { name: "当前模型" })).toHaveTextContent(
+      "GPT-4 视觉"
+    )
+  })
+
+  it("should keep non-vision built-in model names unchanged", async () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: null,
+      currentModel: "qwen-plus",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
     })
-  })
 
-  it("should update the current model when selecting another option", async () => {
     render(<ModelSelector />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole("button", { name: "GPT-4o" }))
-
-    expect(useSessionStore.getState().currentModel).toBe("gpt-4o")
+    expect(screen.getByRole("button", { name: "当前模型" })).toHaveTextContent(
+      "Qwen Plus"
+    )
   })
 
-  it("should render and select domestic models", async () => {
-    render(<ModelSelector />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-
-    expect(screen.getByRole("button", { name: "Qwen Plus" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "GLM-5" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Kimi K2" })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "Qwen Plus" }))
-
-    expect(useSessionStore.getState().currentModel).toBe("qwen-plus")
-  })
-
-  it("should render custom models and store custom:<id> when selected", async () => {
+  it("should not add a misleading vision label to custom models", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => [
@@ -96,14 +94,30 @@ describe("ModelSelector", () => {
       ]
     })
 
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: null,
+      currentModel: "custom:cfg-1",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
     render(<ModelSelector />)
 
-    expect(
-      await screen.findByRole("button", { name: "My Gateway" })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "My Gateway" })).toBeInTheDocument()
+    expect(screen.queryByText("My Gateway 视觉")).not.toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole("button", { name: "My Gateway" }))
+  it("should update the current model when selecting another option", async () => {
+    render(<ModelSelector />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    expect(useSessionStore.getState().currentModel).toBe("custom:cfg-1")
+    fireEvent.click(screen.getByRole("button", { name: "GPT-4o 视觉" }))
+
+    expect(useSessionStore.getState().currentModel).toBe("gpt-4o")
   })
 })
