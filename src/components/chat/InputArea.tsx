@@ -18,6 +18,7 @@ interface InputAreaProps {
   setInput: (input: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   disabled: boolean
+  errorMessage?: string | null
 }
 
 export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
@@ -26,7 +27,8 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
       input,
       setInput,
       onSubmit,
-      disabled
+      disabled,
+      errorMessage
     },
     forwardedRef
   ) {
@@ -102,6 +104,10 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
 
     return (
       <div className="border-t bg-background px-4 py-4">
+        {errorMessage ? (
+          <p className="mb-3 text-sm text-destructive">{errorMessage}</p>
+        ) : null}
+
         {images.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-3">
             {images.map((image, index) => (

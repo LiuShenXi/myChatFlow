@@ -1,4 +1,4 @@
-import { streamText } from "ai"
+import { streamText, type Attachment } from "ai"
 import { decrypt } from "@/lib/auth/encryption"
 import { auth } from "@/lib/auth/next-auth"
 import {
@@ -6,13 +6,20 @@ import {
   getProvider
 } from "@/lib/ai/providers"
 import { createErrorResponse } from "@/lib/ai/stream-handler"
+import { extractImageUrls } from "@/lib/chat/message-parts"
 import { prisma } from "@/lib/db/prisma"
-import { getModelConfig, parseCustomModelId } from "@/types/model"
+import {
+  getModelConfig,
+  modelSupportsImageInput,
+  parseCustomModelId
+} from "@/types/model"
 
 type IncomingMessage = {
+  id?: string
   role: "user" | "assistant" | "system"
   content: string
   images?: string[]
+  experimental_attachments?: Attachment[]
 }
 
 export async function POST(req: Request) {
@@ -96,6 +103,25 @@ export async function POST(req: Request) {
       )
     }
 
+    const lastUserMessage = messages[messages.length - 1]
+    const lastUserImages = extractImageUrls(
+      lastUserMessage?.experimental_attachments
+    )
+
+    if (lastUserImages.length > 0 && !modelSupportsImageInput(modelId)) {
+      return new Response(
+        JSON.stringify({
+          error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      )
+    }
+
     if (
       staticModelConfig?.provider === "doubao" &&
       !apiKeyRecord?.endpointId?.trim()
@@ -136,15 +162,16 @@ export async function POST(req: Request) {
       model: provider,
       messages: messages as never,
       onFinish: async ({ text, usage }) => {
-        const lastUserMessage = messages[messages.length - 1]
-
         if (lastUserMessage?.role === "user") {
           await prisma.message.create({
             data: {
               sessionId,
               role: "user",
               content: lastUserMessage.content,
-              images: lastUserMessage.images ?? []
+              images:
+                lastUserImages.length > 0
+                  ? lastUserImages
+                  : lastUserMessage.images ?? []
             }
           })
         }

@@ -53,6 +53,9 @@ export function ModelSelector() {
     AVAILABLE_MODELS.find((model) => model.id === currentModel)?.name ??
     currentModel
 
+  const renderModelLabel = (model: { name: string; supportsVision?: boolean }) =>
+    model.supportsVision ? `${model.name} 视觉` : model.name
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -64,7 +67,7 @@ export function ModelSelector() {
       <DropdownMenuContent align="end">
         {AVAILABLE_MODELS.map((model) => (
           <DropdownMenuItem key={model.id} onClick={() => setModel(model.id)}>
-            {model.name}
+            {renderModelLabel(model)}
           </DropdownMenuItem>
         ))}
 

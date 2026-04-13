@@ -203,6 +203,151 @@ describe("/api/chat route", () => {
     )
   })
 
+  it("should reject image input for a non-vision built-in model", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "qwen-plus",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    })
+  })
+
+  it("should pass image attachments through to streamText for a vision model", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "openai-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "gpt-4o",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(streamTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            experimental_attachments: [
+              expect.objectContaining({
+                url: "data:image/png;base64,abc"
+              })
+            ]
+          })
+        ]
+      })
+    )
+  })
+
+  it("should persist image urls extracted from attachments", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
+    decryptMock.mockReturnValue("decrypted-value")
+    getProviderMock.mockReturnValue({ provider: "openai-model" })
+    streamTextMock.mockImplementation(async ({ onFinish }) => {
+      await onFinish({
+        text: "助手回复",
+        usage: {
+          totalTokens: 42
+        }
+      })
+
+      return {
+        toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+      }
+    })
+
+    await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "gpt-4o",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sessionId: "session-1",
+          role: "user",
+          content: "看图",
+          images: ["data:image/png;base64,abc"]
+        })
+      })
+    )
+  })
+
   it("should reject doubao chat requests when endpoint id is missing", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
     findUniqueMock.mockResolvedValue({

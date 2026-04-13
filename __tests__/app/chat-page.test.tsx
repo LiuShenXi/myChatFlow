@@ -7,7 +7,12 @@ import { useSessionStore } from "@/store/session-store"
 const useChatMock = jest.fn()
 const useSessionMock = jest.fn()
 const mockFocus = jest.fn()
-const latestInputAreaPropsHolder: { current: unknown } = { current: null }
+let latestInputAreaProps:
+  | {
+      onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+      errorMessage?: string | null
+    }
+  | undefined
 
 jest.mock("ai/react", () => ({
   useChat: (...args: unknown[]) => useChatMock(...args)
@@ -38,8 +43,15 @@ jest.mock("@/components/chat/InputArea", () => {
     {
       input: string
       disabled: boolean
+      onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+      errorMessage?: string | null
     }
-  >(function MockInputArea({ input, disabled }, ref) {
+  >(function MockInputArea({ input, disabled, onSubmit, errorMessage }, ref) {
+    latestInputAreaProps = {
+      onSubmit,
+      errorMessage
+    }
+
     React.useImperativeHandle(
       ref,
       () =>
@@ -52,6 +64,7 @@ jest.mock("@/components/chat/InputArea", () => {
       <div>
         <div>输入框 {input}</div>
         <div>禁用状态 {String(disabled)}</div>
+        <div>错误信息 {errorMessage ?? "无"}</div>
       </div>
     )
   })
@@ -69,6 +82,7 @@ describe("ChatPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    latestInputAreaProps = undefined
     global.fetch = fetchMock as unknown as typeof fetch
     document.body.innerHTML = ""
     useSessionMock.mockReturnValue({
@@ -177,6 +191,122 @@ describe("ChatPage", () => {
       }
     ])
     expect(screen.getByText("禁用状态 false")).toBeInTheDocument()
+  })
+
+  it("should map stored images back to experimental attachments when loading history", async () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "gpt-4o",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        messages: [
+          {
+            id: "message-1",
+            role: "user",
+            content: "看图",
+            images: ["data:image/png;base64,abc"]
+          }
+        ]
+      })
+    })
+
+    render(<ChatPage />)
+
+    await waitFor(() => {
+      expect(setMessagesMock).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          id: "message-1",
+          role: "user",
+          content: "看图",
+          experimental_attachments: [
+            expect.objectContaining({
+              url: "data:image/png;base64,abc"
+            })
+          ]
+        })
+      ])
+    })
+  })
+
+  it("should submit chat images as experimental attachments", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "gpt-4o",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      ...useChatStore.getState(),
+      images: ["data:image/png;base64,abc"]
+    })
+
+    render(<ChatPage />)
+
+    latestInputAreaProps?.onSubmit?.({
+      preventDefault: jest.fn()
+    } as unknown as React.FormEvent<HTMLFormElement>)
+
+    expect(handleSubmitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        experimental_attachments: [
+          expect.objectContaining({
+            url: "data:image/png;base64,abc"
+          })
+        ]
+      })
+    )
+  })
+
+  it("should block image submit for a non-vision model and show an error", () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "qwen-plus",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      ...useChatStore.getState(),
+      images: ["data:image/png;base64,abc"]
+    })
+
+    render(<ChatPage />)
+
+    const preventDefault = jest.fn()
+
+    act(() => {
+      latestInputAreaProps?.onSubmit?.({
+        preventDefault
+      } as unknown as React.FormEvent<HTMLFormElement>)
+    })
+
+    expect(preventDefault).toHaveBeenCalled()
+    expect(handleSubmitMock).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("错误信息 当前模型不支持图片输入，请切换到支持多模态的模型后再发送")
+    ).toBeInTheDocument()
   })
 
   it("should sync loading state to the chat store", () => {

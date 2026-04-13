@@ -65,7 +65,7 @@ describe("ModelSelector", () => {
     render(<ModelSelector />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole("button", { name: "GPT-4o" }))
+    fireEvent.click(screen.getByRole("button", { name: "GPT-4o 视觉" }))
 
     expect(useSessionStore.getState().currentModel).toBe("gpt-4o")
   })
@@ -81,6 +81,22 @@ describe("ModelSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: "Qwen Plus" }))
 
     expect(useSessionStore.getState().currentModel).toBe("qwen-plus")
+  })
+
+  it("should label built-in vision models in the selector", async () => {
+    render(<ModelSelector />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    expect(
+      screen.getByRole("button", { name: "GPT-4 视觉" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "GPT-4o 视觉" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Claude 3.5 Sonnet 视觉" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Qwen Plus" })).toBeInTheDocument()
   })
 
   it("should render custom models and store custom:<id> when selected", async () => {

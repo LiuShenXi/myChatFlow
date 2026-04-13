@@ -2,6 +2,7 @@
 
 import type { Message } from "ai"
 import { Bot, User } from "lucide-react"
+import { extractImageUrls } from "@/lib/chat/message-parts"
 import { MarkdownRenderer } from "./MarkdownRenderer"
 
 interface MessageItemProps {
@@ -12,6 +13,7 @@ export function MessageItem({ message }: MessageItemProps) {
   const isUser = message.role === "user"
   const content =
     typeof message.content === "string" ? message.content : String(message.content)
+  const imageUrls = extractImageUrls(message.experimental_attachments)
 
   return (
     <div className={`flex gap-4 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -41,6 +43,20 @@ export function MessageItem({ message }: MessageItemProps) {
             <MarkdownRenderer content={content} />
           )}
         </div>
+
+        {imageUrls.length > 0 ? (
+          <div className={`flex flex-wrap gap-2 ${isUser ? "justify-end" : ""}`}>
+            {imageUrls.map((url, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${url.slice(0, 32)}-${index}`}
+                src={url}
+                alt={`消息图片 ${index + 1}`}
+                className="h-24 w-24 rounded-md border object-cover"
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   )
