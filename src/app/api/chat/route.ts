@@ -5,7 +5,15 @@ import {
   createCustomOpenAICompatibleModel,
   getProvider
 } from "@/lib/ai/providers"
-import { createErrorResponse } from "@/lib/ai/stream-handler"
+import {
+  classifyVisionCapabilityFailure,
+  inferProviderHintFromCustomModel,
+  resolveCustomModelVisionCapability
+} from "@/lib/ai/custom-model-capabilities"
+import {
+  createErrorResponse,
+  getChatErrorMessage
+} from "@/lib/ai/stream-handler"
 import { extractImageUrls } from "@/lib/chat/message-parts"
 import { prisma } from "@/lib/db/prisma"
 import {
@@ -63,6 +71,19 @@ export async function POST(req: Request) {
     }
 
     const customEncryptedApiKey = customModelConfig?.encryptedApiKey ?? null
+    const resolvedCustomVisionCapability = customModelConfig
+      ? resolveCustomModelVisionCapability({
+          baseUrl: customModelConfig.baseUrl,
+          modelId: customModelConfig.modelId,
+          visionCapability:
+            (customModelConfig as { visionCapability?: "unknown" | "vision" | "text-only" })
+              .visionCapability ?? "unknown",
+          visionCapabilitySource:
+            (customModelConfig as {
+              visionCapabilitySource?: "manual" | "inferred" | "learned"
+            }).visionCapabilitySource ?? "inferred"
+        })
+      : null
 
     if (customModelConfig && !customEncryptedApiKey?.trim()) {
       return new Response(
@@ -108,7 +129,26 @@ export async function POST(req: Request) {
       lastUserMessage?.experimental_attachments
     )
 
-    if (lastUserImages.length > 0 && !modelSupportsImageInput(modelId)) {
+    if (
+      customModelConfig &&
+      lastUserImages.length > 0
+    ) {
+      if (resolvedCustomVisionCapability?.capability === "text-only") {
+        return new Response(
+          JSON.stringify({
+            error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+          }),
+          {
+            status: 400,
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        )
+      }
+    }
+
+    if (lastUserImages.length > 0 && !customModelConfig && !modelSupportsImageInput(modelId)) {
       return new Response(
         JSON.stringify({
           error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
@@ -194,7 +234,33 @@ export async function POST(req: Request) {
       }
     })
 
-    return result.toDataStreamResponse()
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        if (customModelConfig && lastUserImages.length > 0) {
+          const failure = classifyVisionCapabilityFailure({
+            providerHint: inferProviderHintFromCustomModel({
+              baseUrl: customModelConfig.baseUrl,
+              modelId: customModelConfig.modelId
+            }),
+            error
+          })
+
+          if (failure === "not-vision-supported") {
+            void prisma.customModelConfig.update({
+              where: { id: customModelConfig.id },
+              data: {
+                visionCapability: "text-only",
+                visionCapabilitySource: "learned"
+              }
+            })
+
+            return "当前模型不支持图片输入，请切换到支持多模态的模型后再发送\n已自动识别该模型暂不支持图片输入，系统已为你关闭图片能力。"
+          }
+        }
+
+        return getChatErrorMessage(error)
+      }
+    })
   } catch (error) {
     return createErrorResponse(error)
   }

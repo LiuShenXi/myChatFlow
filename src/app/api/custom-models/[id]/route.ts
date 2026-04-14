@@ -29,6 +29,8 @@ function toPublicConfig(config: {
   name: string
   baseUrl: string
   modelId: string
+  visionCapability: string
+  visionCapabilitySource: string
   encryptedApiKey: string | null
   updatedAt: string | Date
 }) {
@@ -37,6 +39,8 @@ function toPublicConfig(config: {
     name: config.name,
     baseUrl: config.baseUrl,
     modelId: config.modelId,
+    visionCapability: config.visionCapability,
+    visionCapabilitySource: config.visionCapabilitySource,
     hasApiKey: Boolean(config.encryptedApiKey),
     updatedAt: config.updatedAt
   }
@@ -57,6 +61,7 @@ export async function PATCH(
     name?: string
     baseUrl?: string
     modelId?: string
+    visionCapability?: string
     apiKey?: string
   }
 
@@ -64,6 +69,7 @@ export async function PATCH(
   const baseUrl = payload.baseUrl?.trim()
   const modelId = payload.modelId?.trim()
   const apiKey = payload.apiKey?.trim()
+  const visionCapability = payload.visionCapability?.trim()
 
   if (!name || !modelId || !baseUrl || !isValidBaseUrl(baseUrl)) {
     return createInvalidConfigResponse()
@@ -78,6 +84,12 @@ export async function PATCH(
       name,
       baseUrl,
       modelId,
+      ...(visionCapability
+        ? {
+            visionCapability,
+            visionCapabilitySource: "manual"
+          }
+        : {}),
       ...(apiKey ? { encryptedApiKey: encrypt(apiKey) } : {})
     },
     select: {
@@ -85,6 +97,8 @@ export async function PATCH(
       name: true,
       baseUrl: true,
       modelId: true,
+      visionCapability: true,
+      visionCapabilitySource: true,
       encryptedApiKey: true,
       updatedAt: true
     }

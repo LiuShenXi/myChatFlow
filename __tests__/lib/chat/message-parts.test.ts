@@ -73,8 +73,8 @@ describe("message parts helpers", () => {
     })
   })
 
-  it("should allow custom models to support image input", () => {
-    expect(modelSupportsImageInput("custom:cfg-1")).toBe(true)
+  it("should treat custom models as non-vision until capability is resolved elsewhere", () => {
+    expect(modelSupportsImageInput("custom:cfg-1")).toBe(false)
   })
 
   it("should keep qwen-plus as text only", () => {

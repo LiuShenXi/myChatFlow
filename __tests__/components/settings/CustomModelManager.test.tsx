@@ -19,6 +19,8 @@ describe("CustomModelManager", () => {
           name: "My Gateway",
           baseUrl: "https://example.com/v1",
           modelId: "gpt-4o-mini",
+          visionCapability: "unknown",
+          visionCapabilitySource: "inferred",
           hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         }
@@ -30,6 +32,8 @@ describe("CustomModelManager", () => {
     expect(await screen.findByText("My Gateway")).toBeInTheDocument()
     expect(screen.getByText("https://example.com/v1")).toBeInTheDocument()
     expect(screen.getByText("已配置密钥")).toBeInTheDocument()
+    expect(screen.getByText("图片能力 自动识别中")).toBeInTheDocument()
+    expect(screen.getByText("来源 系统识别")).toBeInTheDocument()
   })
 
   it("should create a custom model with its own api key", async () => {
@@ -45,6 +49,8 @@ describe("CustomModelManager", () => {
           name: "My Gateway",
           baseUrl: "https://example.com/v1",
           modelId: "gpt-4o-mini",
+          visionCapability: "vision",
+          visionCapabilitySource: "manual",
           hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         })
@@ -64,6 +70,9 @@ describe("CustomModelManager", () => {
     fireEvent.change(screen.getByLabelText("Custom model API Key"), {
       target: { value: "sk-test" }
     })
+    fireEvent.change(screen.getByLabelText("Custom model vision capability"), {
+      target: { value: "vision" }
+    })
     fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
 
     await waitFor(() => {
@@ -75,6 +84,7 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            visionCapability: "vision",
             apiKey: "sk-test"
           })
         })
@@ -94,6 +104,8 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            visionCapability: "unknown",
+            visionCapabilitySource: "inferred",
             hasApiKey: true,
             updatedAt: "2026-04-12T00:00:00.000Z"
           }
@@ -106,6 +118,8 @@ describe("CustomModelManager", () => {
           name: "Updated Gateway",
           baseUrl: "https://new.example.com/v1",
           modelId: "gpt-4.1-mini",
+          visionCapability: "vision",
+          visionCapabilitySource: "manual",
           hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         })
@@ -126,6 +140,9 @@ describe("CustomModelManager", () => {
     fireEvent.change(screen.getByLabelText("Custom model API Key"), {
       target: { value: "sk-updated" }
     })
+    fireEvent.change(screen.getByLabelText("Custom model vision capability"), {
+      target: { value: "vision" }
+    })
     fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
 
     await waitFor(() => {
@@ -137,6 +154,7 @@ describe("CustomModelManager", () => {
             name: "Updated Gateway",
             baseUrl: "https://new.example.com/v1",
             modelId: "gpt-4.1-mini",
+            visionCapability: "vision",
             apiKey: "sk-updated"
           })
         })
@@ -156,6 +174,8 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            visionCapability: "vision",
+            visionCapabilitySource: "manual",
             hasApiKey: true,
             updatedAt: "2026-04-12T00:00:00.000Z"
           }
@@ -168,6 +188,8 @@ describe("CustomModelManager", () => {
           name: "Updated Gateway",
           baseUrl: "https://new.example.com/v1",
           modelId: "gpt-4.1-mini",
+          visionCapability: "unknown",
+          visionCapabilitySource: "manual",
           hasApiKey: true,
           updatedAt: "2026-04-12T00:00:00.000Z"
         })
@@ -185,6 +207,9 @@ describe("CustomModelManager", () => {
     fireEvent.change(screen.getByLabelText("Custom model ID"), {
       target: { value: "gpt-4.1-mini" }
     })
+    fireEvent.change(screen.getByLabelText("Custom model vision capability"), {
+      target: { value: "unknown" }
+    })
     fireEvent.click(screen.getByRole("button", { name: "保存自定义模型" }))
 
     await waitFor(() => {
@@ -195,7 +220,8 @@ describe("CustomModelManager", () => {
           body: JSON.stringify({
             name: "Updated Gateway",
             baseUrl: "https://new.example.com/v1",
-            modelId: "gpt-4.1-mini"
+            modelId: "gpt-4.1-mini",
+            visionCapability: "unknown"
           })
         })
       )
@@ -212,6 +238,8 @@ describe("CustomModelManager", () => {
             name: "My Gateway",
             baseUrl: "https://example.com/v1",
             modelId: "gpt-4o-mini",
+            visionCapability: "unknown",
+            visionCapabilitySource: "inferred",
             hasApiKey: true,
             updatedAt: "2026-04-12T00:00:00.000Z"
           }

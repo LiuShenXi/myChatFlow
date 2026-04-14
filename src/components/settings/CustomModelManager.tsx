@@ -10,6 +10,8 @@ type CustomModelConfigDTO = {
   name: string
   baseUrl: string
   modelId: string
+  visionCapability: "unknown" | "vision" | "text-only"
+  visionCapabilitySource: "manual" | "inferred" | "learned"
   hasApiKey: boolean
   updatedAt: string
 }
@@ -18,6 +20,7 @@ type DraftState = {
   name: string
   baseUrl: string
   modelId: string
+  visionCapability: "unknown" | "vision" | "text-only"
   apiKey: string
 }
 
@@ -25,7 +28,34 @@ const EMPTY_DRAFT: DraftState = {
   name: "",
   baseUrl: "",
   modelId: "",
+  visionCapability: "unknown",
   apiKey: ""
+}
+
+function formatVisionCapability(capability: CustomModelConfigDTO["visionCapability"]) {
+  if (capability === "vision") {
+    return "支持图片输入"
+  }
+
+  if (capability === "text-only") {
+    return "不支持图片输入"
+  }
+
+  return "自动识别中"
+}
+
+function formatVisionCapabilitySource(
+  source: CustomModelConfigDTO["visionCapabilitySource"]
+) {
+  if (source === "manual") {
+    return "手动设置"
+  }
+
+  if (source === "learned") {
+    return "失败学习"
+  }
+
+  return "系统识别"
 }
 
 export function CustomModelManager() {
@@ -70,6 +100,7 @@ export function CustomModelManager() {
       name: draft.name.trim(),
       baseUrl: draft.baseUrl.trim(),
       modelId: draft.modelId.trim(),
+      visionCapability: draft.visionCapability,
       apiKey: draft.apiKey.trim()
     }
 
@@ -91,7 +122,8 @@ export function CustomModelManager() {
         : {
             name: payload.name,
             baseUrl: payload.baseUrl,
-            modelId: payload.modelId
+            modelId: payload.modelId,
+            visionCapability: payload.visionCapability
           }
     )
 
@@ -129,6 +161,7 @@ export function CustomModelManager() {
       name: model.name,
       baseUrl: model.baseUrl,
       modelId: model.modelId,
+      visionCapability: model.visionCapability,
       apiKey: ""
     })
   }
@@ -223,6 +256,31 @@ export function CustomModelManager() {
               onChange={(event) => updateDraft("apiKey", event.target.value)}
             />
           </div>
+
+          <div className="space-y-1">
+            <label
+              className="text-sm font-medium"
+              htmlFor="custom-model-vision-capability"
+            >
+              图片能力
+            </label>
+            <select
+              id="custom-model-vision-capability"
+              aria-label="Custom model vision capability"
+              value={draft.visionCapability}
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none"
+              onChange={(event) =>
+                updateDraft(
+                  "visionCapability",
+                  event.target.value as DraftState["visionCapability"]
+                )
+              }
+            >
+              <option value="unknown">自动识别中</option>
+              <option value="vision">支持图片输入</option>
+              <option value="text-only">不支持图片输入</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -254,6 +312,12 @@ export function CustomModelManager() {
               <div className="text-sm font-medium">{model.name}</div>
               <div className="text-xs text-muted-foreground">{model.baseUrl}</div>
               <div className="text-xs text-muted-foreground">{model.modelId}</div>
+              <div className="text-xs text-muted-foreground">
+                图片能力 {formatVisionCapability(model.visionCapability)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                来源 {formatVisionCapabilitySource(model.visionCapabilitySource)}
+              </div>
               {model.hasApiKey ? (
                 <div className="flex items-center gap-1 text-xs text-green-600">
                   <KeyRound className="h-3.5 w-3.5" />

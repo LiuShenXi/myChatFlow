@@ -44,6 +44,8 @@ describe("/api/custom-models route", () => {
         name: "My Gateway",
         baseUrl: "https://example.com/v1",
         modelId: "gpt-4o-mini",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred",
         encryptedApiKey: "encrypted-key",
         updatedAt: "2026-04-12T00:00:00.000Z"
       }
@@ -52,7 +54,12 @@ describe("/api/custom-models route", () => {
     const response = await GET()
 
     await expect(response.json()).resolves.toEqual([
-      expect.objectContaining({ id: "cfg-1", name: "My Gateway" })
+      expect.objectContaining({
+        id: "cfg-1",
+        name: "My Gateway",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred"
+      })
     ])
     expect(findManyMock).toHaveBeenCalledWith({
       where: { userId: "user-1" },
@@ -62,6 +69,8 @@ describe("/api/custom-models route", () => {
         name: true,
         baseUrl: true,
         modelId: true,
+        visionCapability: true,
+        visionCapabilitySource: true,
         encryptedApiKey: true,
         updatedAt: true
       }
@@ -115,6 +124,8 @@ describe("/api/custom-models route", () => {
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
       modelId: "gpt-4o-mini",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
       encryptedApiKey: "encrypted-key",
       updatedAt: "2026-04-12T00:00:00.000Z"
     })
@@ -136,7 +147,9 @@ describe("/api/custom-models route", () => {
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
         id: "cfg-1",
-        name: "My Gateway"
+        name: "My Gateway",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred"
       })
     )
     expect(createMock).toHaveBeenCalledWith({
@@ -145,6 +158,8 @@ describe("/api/custom-models route", () => {
         name: "My Gateway",
         baseUrl: "https://example.com/v1",
         modelId: "gpt-4o-mini",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred",
         encryptedApiKey: "encrypted-key"
       },
       select: {
@@ -152,6 +167,68 @@ describe("/api/custom-models route", () => {
         name: true,
         baseUrl: true,
         modelId: true,
+        visionCapability: true,
+        visionCapabilitySource: true,
+        encryptedApiKey: true,
+        updatedAt: true
+      }
+    })
+  })
+
+  it("should mark vision capability as manual when explicitly provided on create", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    encryptMock.mockReturnValue("encrypted-key")
+    createMock.mockResolvedValue({
+      id: "cfg-vision",
+      userId: "user-1",
+      name: "GLM-5V-Turbo",
+      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      modelId: "glm-5v-turbo",
+      visionCapability: "vision",
+      visionCapabilitySource: "manual",
+      encryptedApiKey: "encrypted-key",
+      updatedAt: "2026-04-12T00:00:00.000Z"
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/custom-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "GLM-5V-Turbo",
+          baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+          modelId: "glm-5v-turbo",
+          visionCapability: "vision",
+          apiKey: "sk-test"
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        id: "cfg-vision",
+        visionCapability: "vision",
+        visionCapabilitySource: "manual"
+      })
+    )
+    expect(createMock).toHaveBeenCalledWith({
+      data: {
+        userId: "user-1",
+        name: "GLM-5V-Turbo",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+        modelId: "glm-5v-turbo",
+        visionCapability: "vision",
+        visionCapabilitySource: "manual",
+        encryptedApiKey: "encrypted-key"
+      },
+      select: {
+        id: true,
+        name: true,
+        baseUrl: true,
+        modelId: true,
+        visionCapability: true,
+        visionCapabilitySource: true,
         encryptedApiKey: true,
         updatedAt: true
       }

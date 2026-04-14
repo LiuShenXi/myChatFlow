@@ -20,6 +20,17 @@ describe("createErrorResponse", () => {
     expect(response.status).toBe(429)
   })
 
+  it("should map chinese rate limit errors to 429", async () => {
+    const response = createErrorResponse(
+      new Error("您的账户已达到速率限制，请您控制请求频率")
+    )
+
+    await expect(response.json()).resolves.toEqual({
+      error: "请求过于频繁，请稍后再试"
+    })
+    expect(response.status).toBe(429)
+  })
+
   it("should map token errors to 400", async () => {
     const response = createErrorResponse(new Error("context length exceeded"))
 
