@@ -115,7 +115,7 @@ export function parseCustomModelId(modelId: string) {
 
 export function modelSupportsImageInput(modelId: string) {
   if (isCustomModelId(modelId)) {
-    return true
+    return false
   }
 
   return getModelConfig(modelId)?.supportsVision ?? false

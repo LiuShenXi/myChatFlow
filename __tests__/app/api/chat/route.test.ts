@@ -2,6 +2,7 @@
 const authMock = jest.fn()
 const findUniqueMock = jest.fn()
 const customModelFindUniqueMock = jest.fn()
+const customModelUpdateMock = jest.fn()
 const messageCreateMock = jest.fn()
 const sessionUpdateMock = jest.fn()
 const decryptMock = jest.fn()
@@ -23,7 +24,8 @@ jest.mock("@/lib/db/prisma", () => ({
       findUnique: (...args: unknown[]) => findUniqueMock(...args)
     },
     customModelConfig: {
-      findUnique: (...args: unknown[]) => customModelFindUniqueMock(...args)
+      findUnique: (...args: unknown[]) => customModelFindUniqueMock(...args),
+      update: (...args: unknown[]) => customModelUpdateMock(...args)
     },
     message: {
       create: (...args: unknown[]) => messageCreateMock(...args)
@@ -120,6 +122,8 @@ describe("/api/chat route", () => {
     findUniqueMock.mockResolvedValue({ encryptedKey: "encrypted-value" })
     decryptMock.mockReturnValue("decrypted-value")
     getProviderMock.mockReturnValue({ provider: "openai-model" })
+    const toDataStreamResponseMock = jest.fn(() => new Response("stream-ok", { status: 200 }))
+
     streamTextMock.mockImplementation(async ({ onFinish }) => {
       await onFinish({
         text: "助手回复",
@@ -129,7 +133,7 @@ describe("/api/chat route", () => {
       })
 
       return {
-        toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+        toDataStreamResponse: toDataStreamResponseMock
       }
     })
 
@@ -160,6 +164,16 @@ describe("/api/chat route", () => {
       "gpt-4",
       "decrypted-value"
     )
+    expect(toDataStreamResponseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        getErrorMessage: expect.any(Function)
+      })
+    )
+    expect(
+      toDataStreamResponseMock.mock.calls[0][0].getErrorMessage(
+        new Error("您的账户已达到速率限制，请您控制请求频率")
+      )
+    ).toBe("请求过于频繁，请稍后再试")
     expect(messageCreateMock).toHaveBeenCalledTimes(2)
     expect(sessionUpdateMock).toHaveBeenCalledWith({
       where: { id: "session-1" },
@@ -427,6 +441,8 @@ describe("/api/chat route", () => {
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
       modelId: "gpt-4o-mini",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
       encryptedApiKey: "encrypted-custom-key"
     })
     decryptMock.mockReturnValue("decrypted-custom-key")
@@ -470,6 +486,8 @@ describe("/api/chat route", () => {
       name: "My Gateway",
       baseUrl: "https://example.com/v1",
       modelId: "gpt-4o-mini",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
       encryptedApiKey: ""
     })
 
@@ -490,6 +508,228 @@ describe("/api/chat route", () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
       error: "该自定义模型缺少 API Key，请在设置中重新保存"
+    })
+  })
+
+  it("should allow image input for custom models when capability is unknown", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "Mystery Gateway",
+      baseUrl: "https://gateway.example.com/v1",
+      modelId: "acme-chat",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
+      encryptedApiKey: "encrypted-custom-key"
+    })
+    decryptMock.mockReturnValue("decrypted-custom-key")
+    createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(streamTextMock).toHaveBeenCalled()
+    expect(createCustomProviderMock).toHaveBeenCalledWith(
+      "https://gateway.example.com/v1",
+      "acme-chat",
+      "decrypted-custom-key"
+    )
+  })
+
+  it("should reject image input for custom models inferred as text-only", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "GLM5.1",
+      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      modelId: "glm-5.1",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
+      encryptedApiKey: "encrypted-custom-key"
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(streamTextMock).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toEqual({
+      error: "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    })
+  })
+
+  it("should allow image input for custom models inferred as vision", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-vision",
+      userId: "user-1",
+      name: "GLM-5V-Turbo",
+      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      modelId: "glm-5v-turbo",
+      visionCapability: "unknown",
+      visionCapabilitySource: "inferred",
+      encryptedApiKey: "encrypted-custom-key"
+    })
+    decryptMock.mockReturnValue("decrypted-custom-key")
+    createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: () => new Response("stream-ok", { status: 200 })
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-vision",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(streamTextMock).toHaveBeenCalled()
+    expect(createCustomProviderMock).toHaveBeenCalledWith(
+      "https://open.bigmodel.cn/api/paas/v4",
+      "glm-5v-turbo",
+      "decrypted-custom-key"
+    )
+  })
+
+  it("should learn a custom model as text-only when stream error clearly shows no vision support", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    customModelFindUniqueMock.mockResolvedValue({
+      id: "cfg-1",
+      userId: "user-1",
+      name: "GLM5.1",
+      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      modelId: "glm-5.1",
+      visionCapability: "vision",
+      visionCapabilitySource: "manual",
+      encryptedApiKey: "encrypted-custom-key"
+    })
+    decryptMock.mockReturnValue("decrypted-custom-key")
+    createCustomProviderMock.mockReturnValue({ provider: "custom-model" })
+    customModelUpdateMock.mockResolvedValue({})
+    const toDataStreamResponseMock = jest.fn(() => new Response("stream-ok", { status: 200 }))
+    streamTextMock.mockResolvedValue({
+      toDataStreamResponse: toDataStreamResponseMock
+    })
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          model: "custom:cfg-1",
+          messages: [
+            {
+              id: "message-1",
+              role: "user",
+              content: "看图",
+              experimental_attachments: [
+                {
+                  name: "image-1",
+                  contentType: "image/png",
+                  url: "data:image/png;base64,abc"
+                }
+              ]
+            }
+          ]
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(toDataStreamResponseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        getErrorMessage: expect.any(Function)
+      })
+    )
+    expect(
+      toDataStreamResponseMock.mock.calls[0][0].getErrorMessage(
+        new Error("仅支持纯文本")
+      )
+    ).toContain("已自动识别该模型暂不支持图片输入")
+    expect(customModelUpdateMock).toHaveBeenCalledWith({
+      where: { id: "cfg-1" },
+      data: {
+        visionCapability: "text-only",
+        visionCapabilitySource: "learned"
+      }
     })
   })
 })

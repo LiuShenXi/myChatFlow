@@ -80,6 +80,44 @@ describe("ChatPage", () => {
   const handleSubmitMock = jest.fn()
   const fetchMock = jest.fn()
 
+  function mockCustomModelFetch(customModels: Array<Record<string, unknown>>) {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+
+      if (url === "/api/custom-models") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => customModels
+        })
+      }
+
+      if (url.startsWith("/api/sessions/")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            messages: []
+          })
+        })
+      }
+
+      return Promise.resolve({
+        ok: false,
+        json: async () => ({})
+      })
+    })
+  }
+
+  async function waitForCustomModelsLoaded() {
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/custom-models")
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
   beforeEach(() => {
     jest.clearAllMocks()
     latestInputAreaProps = undefined
@@ -238,7 +276,7 @@ describe("ChatPage", () => {
     })
   })
 
-  it("should submit chat images as experimental attachments", () => {
+  it("should submit chat images as experimental attachments", async () => {
     useSessionStore.setState({
       sessions: [],
       currentSessionId: "session-1",
@@ -258,9 +296,11 @@ describe("ChatPage", () => {
 
     render(<ChatPage />)
 
-    latestInputAreaProps?.onSubmit?.({
-      preventDefault: jest.fn()
-    } as unknown as React.FormEvent<HTMLFormElement>)
+    await act(async () => {
+      latestInputAreaProps?.onSubmit?.({
+        preventDefault: jest.fn()
+      } as unknown as React.FormEvent<HTMLFormElement>)
+    })
 
     expect(handleSubmitMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -274,7 +314,7 @@ describe("ChatPage", () => {
     )
   })
 
-  it("should block image submit for a non-vision model and show an error", () => {
+  it("should block image submit for a non-vision model and show an error", async () => {
     useSessionStore.setState({
       sessions: [],
       currentSessionId: "session-1",
@@ -296,7 +336,7 @@ describe("ChatPage", () => {
 
     const preventDefault = jest.fn()
 
-    act(() => {
+    await act(async () => {
       latestInputAreaProps?.onSubmit?.({
         preventDefault
       } as unknown as React.FormEvent<HTMLFormElement>)
@@ -307,6 +347,161 @@ describe("ChatPage", () => {
     expect(
       screen.getByText("错误信息 当前模型不支持图片输入，请切换到支持多模态的模型后再发送")
     ).toBeInTheDocument()
+  })
+
+  it("should allow image submit for a custom model when capability is still unknown", async () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "custom:cfg-1",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      ...useChatStore.getState(),
+      images: ["data:image/png;base64,abc"]
+    })
+
+    mockCustomModelFetch([
+      {
+        id: "cfg-1",
+        baseUrl: "https://gateway.example.com/v1",
+        modelId: "acme-chat",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred"
+      }
+    ])
+
+    render(<ChatPage />)
+
+    await waitForCustomModelsLoaded()
+
+    const preventDefault = jest.fn()
+
+    await act(async () => {
+      latestInputAreaProps?.onSubmit?.({
+        preventDefault
+      } as unknown as React.FormEvent<HTMLFormElement>)
+    })
+
+    expect(handleSubmitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        experimental_attachments: [
+          expect.objectContaining({
+            url: "data:image/png;base64,abc"
+          })
+        ]
+      })
+    )
+    expect(screen.getByText("错误信息 无")).toBeInTheDocument()
+    expect(preventDefault).not.toHaveBeenCalled()
+  })
+
+  it("should block image submit for a custom model inferred as text-only", async () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "custom:cfg-1",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      ...useChatStore.getState(),
+      images: ["data:image/png;base64,abc"]
+    })
+
+    mockCustomModelFetch([
+      {
+        id: "cfg-1",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+        modelId: "glm-5.1",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred"
+      }
+    ])
+
+    render(<ChatPage />)
+
+    await waitForCustomModelsLoaded()
+
+    const preventDefault = jest.fn()
+
+    await act(async () => {
+      latestInputAreaProps?.onSubmit?.({
+        preventDefault
+      } as unknown as React.FormEvent<HTMLFormElement>)
+    })
+
+    expect(preventDefault).toHaveBeenCalled()
+    expect(handleSubmitMock).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("错误信息 当前模型不支持图片输入，请切换到支持多模态的模型后再发送")
+    ).toBeInTheDocument()
+  })
+
+  it("should allow image submit for a custom model inferred as vision", async () => {
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: "session-1",
+      currentModel: "custom:cfg-vision",
+      setSessions: useSessionStore.getState().setSessions,
+      setCurrentSession: useSessionStore.getState().setCurrentSession,
+      addSession: useSessionStore.getState().addSession,
+      removeSession: useSessionStore.getState().removeSession,
+      updateSessionTitle: useSessionStore.getState().updateSessionTitle,
+      setModel: useSessionStore.getState().setModel
+    })
+
+    useChatStore.setState({
+      ...useChatStore.getState(),
+      images: ["data:image/png;base64,abc"]
+    })
+
+    mockCustomModelFetch([
+      {
+        id: "cfg-vision",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+        modelId: "glm-5v-turbo",
+        visionCapability: "unknown",
+        visionCapabilitySource: "inferred"
+      }
+    ])
+
+    render(<ChatPage />)
+
+    await waitForCustomModelsLoaded()
+
+    const preventDefault = jest.fn()
+
+    await act(async () => {
+      latestInputAreaProps?.onSubmit?.({
+        preventDefault
+      } as unknown as React.FormEvent<HTMLFormElement>)
+    })
+
+    expect(handleSubmitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        experimental_attachments: [
+          expect.objectContaining({
+            url: "data:image/png;base64,abc"
+          })
+        ]
+      })
+    )
+    expect(screen.getByText("错误信息 无")).toBeInTheDocument()
+    expect(preventDefault).not.toHaveBeenCalled()
   })
 
   it("should sync loading state to the chat store", () => {

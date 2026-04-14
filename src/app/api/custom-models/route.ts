@@ -29,6 +29,8 @@ function toPublicConfig(config: {
   name: string
   baseUrl: string
   modelId: string
+  visionCapability: string
+  visionCapabilitySource: string
   encryptedApiKey: string | null
   updatedAt: string | Date
 }) {
@@ -37,6 +39,8 @@ function toPublicConfig(config: {
     name: config.name,
     baseUrl: config.baseUrl,
     modelId: config.modelId,
+    visionCapability: config.visionCapability,
+    visionCapabilitySource: config.visionCapabilitySource,
     hasApiKey: Boolean(config.encryptedApiKey),
     updatedAt: config.updatedAt
   }
@@ -61,6 +65,8 @@ export async function GET() {
       name: true,
       baseUrl: true,
       modelId: true,
+      visionCapability: true,
+      visionCapabilitySource: true,
       encryptedApiKey: true,
       updatedAt: true
     }
@@ -80,6 +86,7 @@ export async function POST(req: Request) {
     name?: string
     baseUrl?: string
     modelId?: string
+    visionCapability?: string
     apiKey?: string
   }
 
@@ -98,6 +105,8 @@ export async function POST(req: Request) {
       name,
       baseUrl,
       modelId,
+      visionCapability: payload.visionCapability?.trim() || "unknown",
+      visionCapabilitySource: payload.visionCapability?.trim() ? "manual" : "inferred",
       encryptedApiKey: encrypt(apiKey)
     },
     select: {
@@ -105,6 +114,8 @@ export async function POST(req: Request) {
       name: true,
       baseUrl: true,
       modelId: true,
+      visionCapability: true,
+      visionCapabilitySource: true,
       encryptedApiKey: true,
       updatedAt: true
     }

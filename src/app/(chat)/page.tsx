@@ -8,12 +8,29 @@ import { AuthPrompt } from "@/components/auth/AuthPrompt"
 import { InputArea } from "@/components/chat/InputArea"
 import { MessageList } from "@/components/chat/MessageList"
 import {
+  resolveCustomModelVisionCapability,
+  type VisionCapability,
+  type VisionCapabilitySource
+} from "@/lib/ai/custom-model-capabilities"
+import {
   buildImageAttachments,
   mapStoredMessageToUiMessage
 } from "@/lib/chat/message-parts"
 import { useChatStore } from "@/store/chat-store"
 import { useSessionStore } from "@/store/session-store"
-import { modelSupportsImageInput } from "@/types/model"
+import {
+  isCustomModelId,
+  modelSupportsImageInput,
+  parseCustomModelId
+} from "@/types/model"
+
+type CustomModelConfigDTO = {
+  id: string
+  baseUrl: string
+  modelId: string
+  visionCapability: VisionCapability
+  visionCapabilitySource: VisionCapabilitySource
+}
 
 export default function ChatPage() {
   const { status } = useSession()
@@ -25,6 +42,15 @@ export default function ChatPage() {
   const previousReadyRef = useRef(false)
   const previousSessionIdRef = useRef<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [customModels, setCustomModels] = useState<CustomModelConfigDTO[]>([])
+  const [hasLoadedCustomModels, setHasLoadedCustomModels] = useState(false)
+  const currentCustomModelId = parseCustomModelId(currentModel)
+  const selectedCustomModel = currentCustomModelId
+    ? customModels.find((model) => model.id === currentCustomModelId) ?? null
+    : null
+  const resolvedCustomVisionCapability = selectedCustomModel
+    ? resolveCustomModelVisionCapability(selectedCustomModel)
+    : null
 
   const {
     messages,
@@ -66,24 +92,102 @@ export default function ChatPage() {
   }, [currentSessionId, setMessages, status])
 
   useEffect(() => {
+    if (status !== "authenticated" || !currentCustomModelId) {
+      setCustomModels([])
+      setHasLoadedCustomModels(false)
+      return
+    }
+
+    let isCancelled = false
+    setHasLoadedCustomModels(false)
+
+    async function loadCustomModels() {
+      try {
+        const response = await fetch("/api/custom-models")
+
+        if (!response.ok) {
+          if (!isCancelled) {
+            setCustomModels([])
+          }
+          return
+        }
+
+        const data = (await response.json()) as CustomModelConfigDTO[]
+
+        if (!isCancelled) {
+          setCustomModels(data)
+        }
+      } catch {
+        if (!isCancelled) {
+          setCustomModels([])
+        }
+      } finally {
+        if (!isCancelled) {
+          setHasLoadedCustomModels(true)
+        }
+      }
+    }
+
+    void loadCustomModels()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [currentCustomModelId, status])
+
+  useEffect(() => {
     setIsStreaming(isLoading)
   }, [isLoading, setIsStreaming])
 
   const isInputDisabled =
     isLoading || status !== "authenticated" || !currentSessionId
 
+  const getImageSubmitError = () => {
+    if (images.length === 0) {
+      return null
+    }
+
+    if (!isCustomModelId(currentModel)) {
+      return modelSupportsImageInput(currentModel)
+        ? null
+        : "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+    }
+
+    if (!hasLoadedCustomModels || !selectedCustomModel) {
+      return null
+    }
+
+    return resolvedCustomVisionCapability?.capability === "text-only"
+      ? "当前模型不支持图片输入，请切换到支持多模态的模型后再发送"
+      : null
+  }
+
   const handleChatSubmit = (event: FormEvent<HTMLFormElement>) => {
-    if (images.length > 0 && !modelSupportsImageInput(currentModel)) {
+    const imageSubmitError = getImageSubmitError()
+
+    if (imageSubmitError) {
       event.preventDefault()
-      setSubmitError("当前模型不支持图片输入，请切换到支持多模态的模型后再发送")
-      return
+      setSubmitError(imageSubmitError)
+      return false
     }
 
     setSubmitError(null)
     handleSubmit(event, {
       experimental_attachments: buildImageAttachments(images)
     })
+
+    return true
   }
+
+  useEffect(() => {
+    if (images.length === 0) {
+      setSubmitError(null)
+    }
+  }, [images.length])
+
+  useEffect(() => {
+    setSubmitError(null)
+  }, [currentModel])
 
   useEffect(() => {
     const isReady = status === "authenticated" && Boolean(currentSessionId)

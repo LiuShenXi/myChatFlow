@@ -2,6 +2,7 @@ import {
   AVAILABLE_MODELS,
   getModelConfig,
   isCustomModelId,
+  modelSupportsImageInput,
   parseCustomModelId
 } from "@/types/model"
 
@@ -38,5 +39,9 @@ describe("model catalog", () => {
     expect(isCustomModelId("gpt-4")).toBe(false)
     expect(parseCustomModelId("gpt-4")).toBeNull()
     expect(parseCustomModelId("custom:")).toBeNull()
+  })
+
+  it("should treat custom models as non-vision by default", () => {
+    expect(modelSupportsImageInput("custom:cfg-1")).toBe(false)
   })
 })

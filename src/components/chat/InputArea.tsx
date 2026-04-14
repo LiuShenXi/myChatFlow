@@ -16,7 +16,7 @@ import { useImageUpload } from "@/hooks/useImageUpload"
 interface InputAreaProps {
   input: string
   setInput: (input: string) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => boolean | void
   disabled: boolean
   errorMessage?: string | null
 }
@@ -95,9 +95,9 @@ export const InputArea = forwardRef<HTMLTextAreaElement, InputAreaProps>(
     }
 
     const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-      onSubmit(event)
+      const shouldClearImages = onSubmit(event)
 
-      if (!event.defaultPrevented) {
+      if (shouldClearImages) {
         clearImages()
       }
     }
