@@ -1,5 +1,8 @@
 # ChatFlow 本地联调交接说明
 
+> 本文档用于阶段性交接和上下文续接，不替代项目主文档。
+> 如果你是第一次进入仓库，请优先阅读 `README.md`、`docs/project-overview.md`、`docs/project-architecture.md`、`docs/project-structure.md`、`docs/development-guide.md`。
+
 ## 本次已完成工作
 
 ### 1. 本地联调收口包
