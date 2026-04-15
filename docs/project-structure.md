@@ -15,6 +15,7 @@
 这里是页面路由和 API 路由的入口层，负责把应用真正“跑起来”。
 
 - `src/app/layout.tsx`：根布局
+- `src/components/Providers.tsx`：全局 Providers 入口
 - `src/app/(chat)/layout.tsx`：聊天区布局
 - `src/app/(chat)/page.tsx`：聊天主页面
 - `src/app/(auth)/layout.tsx`：认证相关布局
@@ -36,7 +37,7 @@
 
 这里放业务核心逻辑和可复用工具，通常是 API 路由和页面组件真正依赖的地方。
 
-- `lib/auth/`：认证配置、`auth()` 封装、密钥加解密
+- `lib/auth/`：认证配置、服务端 `auth()` 封装、密钥加解密
 - `lib/ai/`：模型适配、流式返回、provider 相关逻辑
 - `lib/db/`：Prisma Client 单例
 - `lib/chat/`：聊天消息和附件处理
@@ -95,8 +96,11 @@
 - 聊天 API：`src/app/api/chat/route.ts`
 - 会话 API：`src/app/api/sessions/route.ts`
 - API Key 管理：`src/app/api/keys/route.ts`
+- 认证路由入口：`src/app/api/auth/[...nextauth]/route.ts`
+- 请求保护入口：`src/middleware.ts`
 - 模型适配：`src/lib/ai/providers.ts`
-- 认证入口：`src/lib/auth/next-auth.ts`
+- 认证配置与服务端封装：`src/lib/auth/next-auth.ts`
+- 全局 Providers：`src/components/Providers.tsx`
 
 ## 找代码时的快速提示
 
