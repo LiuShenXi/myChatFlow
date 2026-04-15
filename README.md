@@ -42,3 +42,4 @@
 3. 需要找代码时看 [目录结构](docs/project-structure.md)
 4. 需要启动项目时看 [开发手册](docs/development-guide.md)
 5. 需要确认当前功能边界时看 [功能地图](docs/feature-map.md)
+需要联调时看 [联调清单](docs/local-qa-checklist.md)；需要接手阶段性上下文时看 [阶段性交接](docs/hand-off.md)。
