@@ -1,6 +1,8 @@
 # ChatFlow 本地联调交接说明
 
 > 本文档用于阶段性交接和上下文续接，不替代项目主文档。
+> 长期开发说明已迁移到 `docs/development-guide.md` 和 `docs/local-qa-checklist.md`。
+> 本文正文主要保留阶段性状态、交接事实和续接建议。
 > 如果你是第一次进入仓库，请优先阅读 `README.md`、`docs/project-overview.md`、`docs/project-architecture.md`、`docs/project-structure.md`、`docs/development-guide.md`。
 
 ## 本次已完成工作

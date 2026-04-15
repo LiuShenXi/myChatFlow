@@ -3,7 +3,7 @@
 ## 本地准备
 
 - 首次进入仓库先安装依赖：`npm install`
-- 本仓库没有 `.env.example`，请手动准备 `.env.local` 或 `.env`
+- 当前仓库未提供 `.env.example`，请手动准备 `.env.local` 或 `.env`
 - 本地数据库准备好后，先执行 `npx prisma generate` 和 `npx prisma db push`
 - 开发前建议先跑 `npm run doctor`，再跑 `npm run verify:local`
 
@@ -55,5 +55,6 @@
 ## 浏览器联调入口
 
 - 默认入口：`http://localhost:3000`
+- 直接登录入口：`http://localhost:3000/login`
 - 浏览器联调清单：`docs/local-qa-checklist.md`
 - 如果出现 `_next/static` 资源异常，先重启 `npm run dev`，必要时清理 `.next` 后再试
