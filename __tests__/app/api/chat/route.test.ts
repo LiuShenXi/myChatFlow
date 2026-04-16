@@ -48,6 +48,16 @@ jest.mock("@/lib/ai/providers", () => ({
 
 import { POST } from "@/app/api/chat/route"
 
+function getFirstMockCallArg(mockFn: jest.Mock, argIndex = 0) {
+  const firstCall = mockFn.mock.calls.at(0)
+
+  if (!firstCall) {
+    throw new Error("Expected mock to be called at least once")
+  }
+
+  return firstCall[argIndex]
+}
+
 describe("/api/chat route", () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -169,8 +179,9 @@ describe("/api/chat route", () => {
         getErrorMessage: expect.any(Function)
       })
     )
+    const streamOptions = getFirstMockCallArg(toDataStreamResponseMock)
     expect(
-      toDataStreamResponseMock.mock.calls[0][0].getErrorMessage(
+      streamOptions.getErrorMessage(
         new Error("您的账户已达到速率限制，请您控制请求频率")
       )
     ).toBe("请求过于频繁，请稍后再试")
@@ -719,8 +730,9 @@ describe("/api/chat route", () => {
         getErrorMessage: expect.any(Function)
       })
     )
+    const streamOptions = getFirstMockCallArg(toDataStreamResponseMock)
     expect(
-      toDataStreamResponseMock.mock.calls[0][0].getErrorMessage(
+      streamOptions.getErrorMessage(
         new Error("仅支持纯文本")
       )
     ).toContain("已自动识别该模型暂不支持图片输入")

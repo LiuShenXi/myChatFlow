@@ -1,5 +1,10 @@
 # ChatFlow 本地联调交接说明
 
+> 本文档用于阶段性交接和上下文续接，不替代项目主文档。
+> 长期开发说明已迁移到 `docs/development-guide.md` 和 `docs/local-qa-checklist.md`。
+> 本文正文主要保留阶段性状态、交接事实和续接建议。
+> 如果你是第一次进入仓库，请优先阅读 `README.md`、`docs/project-overview.md`、`docs/project-architecture.md`、`docs/project-structure.md`、`docs/development-guide.md`。
+
 ## 本次已完成工作
 
 ### 1. 本地联调收口包
@@ -102,11 +107,11 @@
 
 结果：
 
-- TypeScript：通过
-- Jest：通过
-- ESLint：通过
-- Next build：通过
-- 共 `23` 个 test suites、`94` 个 tests 全部通过
+- TypeScript：失败
+- 失败位置：`__tests__/app/api/chat/route.test.ts:173`、`__tests__/app/api/chat/route.test.ts:723`
+- 错误信息：`Object is possibly 'undefined'`、tuple 越界
+- Jest / ESLint / Next build：因 TypeScript 失败被跳过
+- 这是当前仓库的既有基线问题，不是本轮文档改动引入的
 
 ## 当前工作区状态
 
